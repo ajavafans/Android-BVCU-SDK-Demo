@@ -1,6 +1,6 @@
 # Android BVCU SDK
 MCP和MPU所有的功能均基于BVCU SDK进行开发   
-***  
+   
 #### SDK内部封装了以下基础组件:
 - [x] 音视频硬件编解码,支持H264、H265、G726、AAC
 - [x] 网络数据协议，支持基于UDP和TCP收发RTP数据和SIP信令数据
