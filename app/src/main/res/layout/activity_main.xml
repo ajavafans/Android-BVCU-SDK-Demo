@@ -74,6 +74,43 @@
                 android:gravity="center"
                 android:textColor="@android:color/black" />
         </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_margin="5dp"
+            android:background="@drawable/function_bg">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:gravity="center"
+                android:text="@string/RecordTime"
+                android:textColor="@color/black" />
+
+            <EditText
+                android:id="@+id/record_time_edit_id"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:gravity="center"
+                android:text="2"
+                android:hint="@string/RecordTimeHint"
+                android:inputType="number"
+                android:textSize="13sp"
+                android:textColor="@color/black" />
+
+            <Button
+                android:id="@+id/start_record_button"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:text="@string/StartRecord"
+                android:textColor="@color/black" />
+
+        </LinearLayout>
+
         <Button
             android:id="@+id/bt_chat"
             android:layout_width="match_parent"

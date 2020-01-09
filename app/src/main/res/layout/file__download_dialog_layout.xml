@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="300dp"
+    android:layout_height="500dp"
+    android:background="@color/white"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/file_download_title_id"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="文件检索(查询中...)"
+        android:textColor="@color/black" />
+
+    <View
+        android:id="@+id/title_view"
+        android:layout_width="match_parent"
+        android:layout_marginStart="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_height="1dp"
+        android:layout_below="@+id/file_download_title_id"
+        android:background="@color/black"/>
+
+    <ListView
+        android:id="@+id/file_list_id"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/title_view"
+        android:layout_marginBottom="50dp"
+        android:background="#fff"
+        android:overScrollMode="never" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_alignParentBottom="true"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/download_cancel_btn_id"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:text="@string/cancel" />
+
+        <Button
+            android:id="@+id/download_ok_btn_id"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="10dp"
+            android:text="应用" />
+    </LinearLayout>
+
+</RelativeLayout>

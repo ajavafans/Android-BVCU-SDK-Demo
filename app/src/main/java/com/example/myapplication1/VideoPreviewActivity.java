@@ -4,12 +4,15 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -19,6 +22,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.TreeView.PuDeviceBean;
 import com.example.TreeView.PuDeviceNode;
 import com.example.TreeView.PuDeviceTreeAdapter;
+import com.example.dialog.FileDownloadDialog;
+import com.example.dialog.OsdSettingDialog;
+import com.example.entity.FileDownloadEntity;
 import com.smarteye.adapter.BVCU_CmdMsgContent;
 import com.smarteye.adapter.BVCU_Command;
 import com.smarteye.adapter.BVCU_DialogControlParam;
@@ -34,6 +40,8 @@ import com.smarteye.adapter.BVCU_File_TransferInfos;
 import com.smarteye.adapter.BVCU_MediaDir;
 import com.smarteye.adapter.BVCU_Method;
 import com.smarteye.adapter.BVCU_Online_Status;
+import com.smarteye.adapter.BVCU_PUCFG_EncoderChannel;
+import com.smarteye.adapter.BVCU_PUCFG_VideoIn;
 import com.smarteye.adapter.BVCU_PUChannelInfo;
 import com.smarteye.adapter.BVCU_Packet;
 import com.smarteye.adapter.BVCU_Result;
@@ -53,6 +61,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.smarteye.adapter.BVCU_EVENT_DIALOG.BVCU_EVENT_DIALOG_CLOSE;
+
 public class VideoPreviewActivity extends AppCompatActivity {
 	private PuDeviceTreeAdapter puDeviceTreeAdapter;
 	private ListView deviceListView;
@@ -64,6 +74,16 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	private Button refreshBtn, showDeviceBtn;
 	private int videoToken; // 正在被打开设备视频的Token 记录此变量用于关闭设备视频
 	private String videoPUID; // 正在被打开的设备ID
+	private PopupWindow popupLongWindow;
+	private Button osdSettingBtn, fileDownloadBtn;
+	private int sizeWidth, sizeHeight;
+	private OsdSettingDialog osdSettingDialog;
+	private FileDownloadDialog fileDownloadDialog;
+	public final static int TRANSFER_SUCCESS = 0;// 传输成功
+	public final static int TRANSFER_ING = 1;// 传输中
+	public final static int TRANSFER_FAIL = -1;// 传输失败
+	public final static int DOWNLOAD = 0;// 下载
+	public final static int UPLOAD = 1;// 上传
 	private static final String TAG = "VideoPreviewActivity";
 
 	@Override
@@ -106,6 +126,13 @@ public class VideoPreviewActivity extends AppCompatActivity {
 				} else {
 					openInvite(node);
 				}
+			}
+
+			@Override
+			public void onLongClick(PuDeviceNode node, View view, int position) {
+				if (node.getpId() == 0 || node.getpId() != 1) //点击IP或者设备名直接返回，点击通道打开视频
+					return;
+				showPttPopupView(node.getPUID(), view, position);
 			}
 		});
 		deviceListView.setAdapter(puDeviceTreeAdapter);
@@ -173,6 +200,69 @@ public class VideoPreviewActivity extends AppCompatActivity {
 			}
 		}
 	};
+
+	private void showPttPopupView(String deviceId, View view, int position) {
+		int[] location = new int[2];
+		view.getLocationInWindow(location);
+		int x = view.getWidth() / 3;
+		int y = view.getHeight() / 2;
+		sizeWidth = view.getWidth() / 2;
+		sizeHeight = view.getHeight();
+		initPopupLongWindow(deviceId);
+		popupLongWindow.showAtLocation(view, Gravity.NO_GRAVITY,
+				location[0] + x, location[1] + y);
+	}
+
+	/**
+	 * 创建PopupWindow
+	 */
+	private void initPopupLongWindow(final String deviceId) {
+		if (null != popupLongWindow) {
+			popupLongWindow.dismiss();
+			return;
+		}
+		Toast.makeText(this, deviceId, Toast.LENGTH_SHORT).show();
+		View popupWindow_view = getLayoutInflater().inflate(
+				R.layout.device_long_menu, null, false);
+		osdSettingBtn = popupWindow_view.findViewById(R.id.osd_setting_id);
+		fileDownloadBtn = popupWindow_view.findViewById(R.id.file_download_id);
+		popupLongWindow = new PopupWindow(popupWindow_view, sizeWidth,
+				2 * sizeHeight, true);
+		osdSettingBtn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				osdSettingDialog = new OsdSettingDialog(VideoPreviewActivity.this, deviceId);
+				osdSettingDialog.setCancelable(false);
+				osdSettingDialog.show();
+			}
+		});
+		fileDownloadBtn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				fileDownloadDialog = new FileDownloadDialog(VideoPreviewActivity.this, deviceId);
+				fileDownloadDialog.setCancelable(false);
+				fileDownloadDialog.show();
+			}
+		});
+		popupWindow_view.setOnTouchListener(new View.OnTouchListener() {
+			@Override
+			public boolean onTouch(View v, MotionEvent event) {
+				if (popupLongWindow != null && popupLongWindow.isShowing()) {
+					popupLongWindow.dismiss();
+					popupLongWindow = null;
+				}
+				return false;
+			}
+		});
+		popupLongWindow.setOnDismissListener(new PopupWindow.OnDismissListener() {
+			@Override
+			public void onDismiss() {
+				if (popupLongWindow != null) {
+					popupLongWindow = null;
+				}
+			}
+		});
+	}
 
 	/**
 	 * 筛选设备信息放入datas,填充treeListView
@@ -338,15 +428,66 @@ public class VideoPreviewActivity extends AppCompatActivity {
 					if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_SEARCH_LIST) {
 						Log.d(TAG, "查询列表 回复");
 						BVCU_Search_Response rsp = (BVCU_Search_Response) pCommand.stMsgContent.pData;
-						if (rsp.pPUList != null && rsp.pPUList.length > 0) {
+						if (rsp.pPUList != null && rsp.pPUList.length > 0) { // PU列表回复
 							setDeviceDate(Arrays.asList(rsp.pPUList));
 							Message message = Message.obtain();
 							message.what = MESSAGE_REFRESH_DEVICE_LIST;
 							handler.sendMessage(message);
 						}
+						if (rsp.pFileInfo != null && fileDownloadDialog != null) { // 文件列表回复
+							Message message = new Message();
+							message.what = FileDownloadDialog.UPDATE_FILE_LIST;
+							message.obj = rsp.pFileInfo;
+							fileDownloadDialog.handler.sendMessage(message);
+						}
+					} else if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_PU_ENCODERCHANNEL) {
+						if (iResult != BVCU_Result.BVCU_RESULT_S_OK) {
+							Log.w(TAG, "cmd query pu encoder channel response fail: " + iResult);
+							if (osdSettingDialog != null) {
+								Toast.makeText(VideoPreviewActivity.this, "查询叠加信息失败", Toast.LENGTH_SHORT).show();
+							}
+						} else {
+							try {
+								BVCU_PUCFG_EncoderChannel encoderChannel = (BVCU_PUCFG_EncoderChannel) pCommand.stMsgContent.pData;
+								if (osdSettingDialog != null) {
+									osdSettingDialog.setEncoderChannel(encoderChannel);
+								}
+							} catch (Exception e) {
+								Log.w(TAG, "cmd query pu encoder channel response error: " + e.toString());
+							}
+						}
+					} else if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_PU_VIDEOIN) {
+						if (iResult != BVCU_Result.BVCU_RESULT_S_OK) {
+							Log.w(TAG, "cmd query pu video in response fail: " + iResult);
+							if (osdSettingDialog != null) {
+								Toast.makeText(VideoPreviewActivity.this, "查询视频输入配置失败", Toast.LENGTH_SHORT).show();
+							}
+						} else {
+							try {
+								BVCU_PUCFG_VideoIn videoIn = (BVCU_PUCFG_VideoIn) (pCommand.stMsgContent.pData);
+								if (osdSettingDialog != null) {
+									osdSettingDialog.setBVCU_PUCFG_VideoIn(videoIn);
+								}
+							} catch (Exception e) {
+								Log.w(TAG, "cmd query pu encoder channel response error: " + e.toString());
+							}
+						}
 					}
 					break;
 				case BVCU_Method.BVCU_METHOD_CONTROL:
+					if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_PU_ENCODERCHANNEL) {
+						if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+							Toast.makeText(VideoPreviewActivity.this, "设置叠加信息成功", Toast.LENGTH_SHORT).show();
+						} else {
+							Toast.makeText(VideoPreviewActivity.this, "设置叠加信息失败", Toast.LENGTH_SHORT).show();
+						}
+					} else if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_PU_VIDEOIN) {
+						if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+							Toast.makeText(VideoPreviewActivity.this, "设置视频输入配置成功", Toast.LENGTH_SHORT).show();
+						} else {
+							Toast.makeText(VideoPreviewActivity.this, "设置视频输入配置失败", Toast.LENGTH_SHORT).show();
+						}
+					}
 					break;
 				default:
 					break;
@@ -361,7 +502,30 @@ public class VideoPreviewActivity extends AppCompatActivity {
 
 		@Override
 		public void OnFileTransferInfo(BVCU_File_TransferInfos[] bvcu_file_transferInfos) {
-
+			// 文件传输回调  调用下载方法时会返回一个token,此处根据token区分是哪一条下载的回调
+			if (fileDownloadDialog == null) return;
+			ArrayList<FileDownloadEntity> fileLists = fileDownloadDialog.getFileList();
+			if (fileLists == null || fileLists.size() == 0) return;
+			for (BVCU_File_TransferInfos info : bvcu_file_transferInfos) {
+				for (FileDownloadEntity entity : fileLists) {
+					if (info.token == entity.getToken()) {
+						if (info.event == BVCU_EVENT_DIALOG_CLOSE && info.result >= TRANSFER_SUCCESS) {
+							// 传输成功
+							entity.setDownloadStatus(FileDownloadDialog.BVCU_FILE_DOWNLOAD_SUCCESS);
+							entity.setDownloadPercent(100);
+						} else if (info.result < TRANSFER_SUCCESS) {
+							// 传输失败
+							entity.setDownloadStatus(FileDownloadDialog.BVCU_FILE_DOWNLOAD_FAILED);
+						} else {
+							// 传输中
+							int percent = (int) ((float) info.info.iTransferBytes * 100 / info.info.iTotalBytes);
+							entity.setDownloadStatus(FileDownloadDialog.BVCU_FILE_DOWNLOAD_ING);
+							entity.setDownloadPercent(percent);
+						}
+					}
+				}
+			}
+			fileDownloadDialog.handler.sendEmptyMessage(FileDownloadDialog.UPDATE_LIST_VIEW);
 		}
 
 		@Override

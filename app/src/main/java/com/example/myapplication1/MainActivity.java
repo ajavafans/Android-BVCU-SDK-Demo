@@ -16,6 +16,7 @@ import android.hardware.Camera.Size;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
@@ -40,6 +41,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import com.smarteye.adapter.BVCU_CLIENT_TYPE;
+import com.smarteye.adapter.BVCU_CmdMsgContent;
 import com.smarteye.adapter.BVCU_Command;
 import com.smarteye.adapter.BVCU_DialogInfo;
 import com.smarteye.adapter.BVCU_DialogParam;
@@ -50,12 +52,14 @@ import com.smarteye.adapter.BVCU_Event_DialogCmd;
 import com.smarteye.adapter.BVCU_File_TransferInfos;
 import com.smarteye.adapter.BVCU_MediaDir;
 import com.smarteye.adapter.BVCU_Method;
+import com.smarteye.adapter.BVCU_NRUCFG_ManualRecord;
 import com.smarteye.adapter.BVCU_Packet;
 import com.smarteye.adapter.BVCU_Result;
 import com.smarteye.adapter.BVCU_ServerParam;
 import com.smarteye.adapter.BVCU_SessionInfo;
 import com.smarteye.adapter.BVCU_SessionParam;
 import com.smarteye.adapter.BVCU_SubDev;
+import com.smarteye.adapter.BVCU_SubMethod;
 import com.smarteye.adapter.BVPU_ServerParam;
 import com.smarteye.adapter.BVPU_VideoControl_Encode;
 import com.smarteye.adapter.SAVCodec_ID;
@@ -66,7 +70,6 @@ import com.smarteye.sdk.BVCU_EventCallback;
 import com.smarteye.sdk.IAuth;
 import com.smarteye.sdk.bean.BVAuth_Request;
 import com.smarteye.sdk.bean.BVAuth_Response;
-import com.smarteye.test.Test;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -91,6 +94,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private static final int MESSAGE_DOWNLOAD_FILE_SUCCESS = 108;
 	private static final int MESSAGE_DOWNLOAD_FILE_FAIL = 109;
 	private static final int MESSAGE_UPDATE_UPLOAD_FILE_PROGRESS = 110;
+	private static final int MESSAGE_UPDATE_BUTTON_TEXT_DELAY = 120; // 录像时间结束重置按钮状态
 	private static final String RECORDER_DIR_NAME = "Recorder";
 	private static final String RECORDER_FILE_PATH = Environment.getExternalStorageDirectory() + "/" + RECORDER_DIR_NAME;
 	private SurfaceView mSurfaceView;
@@ -104,11 +108,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private int width;
 	private int height;
 	private boolean sendVideoData = false;
-	private Button mLoginButton, videoPreviewBtn, mUploadFileBtn;
+	private Button mLoginButton, videoPreviewBtn, mUploadFileBtn, startRecordBtn;
 	private LinearLayout functionLayout;
+	private EditText recordTimeEdit;
 	private TextView mTvTransportChannel, transferPercent;
 	private boolean authFlag = false;
 	private boolean isLogin = false;
+	private boolean isRecord = false;
 	private String mLocalFilePath;
 	private String mRemoteFileName;
 	private Dialog loginDialog;
@@ -144,6 +150,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 					break;
 				case MESSAGE_TRANSFER_NOTHING:
 					mTvTransportChannel.setText(R.string.current_transfer_text);
+					break;
 				case MESSAGE_DOWNLOAD_FILE_SUCCESS:
 					showToast(R.string.download_success_tip);
 					transferPercent.setText(getString(R.string.transferPercent) + "100%");
@@ -164,6 +171,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 					Log.d(TAG, "progress=" + progress);
 					transferPercent.setText(getString(R.string.transferPercent) + progress + "%");
 					break;
+				case MESSAGE_UPDATE_BUTTON_TEXT_DELAY:
+					isRecord = false;
+					startRecordBtn.setText(R.string.StartRecord);
+					break;
 			}
 		}
 	};
@@ -183,6 +194,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		mLoginButton = (Button) findViewById(R.id.login_button);
 		videoPreviewBtn = (Button) findViewById(R.id.video_preview_button);
 		mUploadFileBtn = (Button) findViewById(R.id.upload_file_button);
+		startRecordBtn = (Button) findViewById(R.id.start_record_button);
+		recordTimeEdit = findViewById(R.id.record_time_edit_id);
 		mTvTransportChannel = (TextView) findViewById(R.id.tv_transport_channel);
 		functionLayout = (LinearLayout) findViewById(R.id.function_layout_id);
 		transferPercent = (TextView) findViewById(R.id.file_transport_percent);
@@ -190,6 +203,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		mLoginButton.setOnClickListener(this);
 		videoPreviewBtn.setOnClickListener(this);
 		mUploadFileBtn.setOnClickListener(this);
+		startRecordBtn.setOnClickListener(this);
 		mSurfaceHolder = mSurfaceView.getHolder();
 		mSurfaceHolder.setKeepScreenOn(true);
 		mSurfaceHolder.addCallback(surfaceHolderCallback);
@@ -203,7 +217,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		bvAuth_request.setSzAppType(Constant.TYPE_MCP);
 		bvAuth_request.setSzDeveloperRsaE(Constant.RSAE);
 		bvAuth_request.setSzDeveloperRsaN(Constant.RSAN);
-		String serial_num = sharedTools.getShareString("auth.serialnumber","");
+		String serial_num = sharedTools.getShareString("auth.serialnumber", "");
 		bvAuth_request.setSzSerialNumber(serial_num);
 		bvAuth_request.setSzInnerInfo("");
 		bvAuth_request.setUserLabel(Constant.USER_LABEL);
@@ -230,7 +244,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				authFlag = true;
 				Toast.makeText(MainActivity.this, R.string.authentication_success, Toast.LENGTH_SHORT).show();
 				//login();
-				sharedTools.setShareString("auth.serialnumber",bvAuth_response.getSerialNumber());
+				sharedTools.setShareString("auth.serialnumber", bvAuth_response.getSerialNumber());
 			} else {
 				authFlag = false;
 				Toast.makeText(MainActivity.this, R.string.authentication_failed + "，设备认证Token为" + bvAuth_response.getToken() + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
@@ -250,7 +264,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				if (authFlag) {
 					showLoginDialog();
 				} else {
-
 					showLoginDialog();
 					showToast(R.string.authentication_failed_tips);
 					Toast.makeText(MainActivity.this, R.string.authentication_failed + "，设备认证Token为" + bv_auth_token + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
@@ -271,6 +284,34 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 					fileIntent.setType("*/*");
 					fileIntent.addCategory(Intent.CATEGORY_OPENABLE);
 					startActivityForResult(fileIntent, FILE_REQUEST_CODE);
+				} else {
+					showToast(R.string.login_tips);
+				}
+				break;
+			case R.id.start_record_button:
+				if (isLogin) {
+					if (isRecord) {
+						// 手动停止录像，移除倒计时
+						mHandler.removeMessages(MESSAGE_UPDATE_BUTTON_TEXT_DELAY);
+						isRecord = false;
+						controlRecord(RECORD_FLAG_STOP, 0);
+						startRecordBtn.setText(R.string.StartRecord);
+					} else {
+						isRecord = true;
+						int recordLength = 2 * 60; // 默认录制两分钟
+						if (!TextUtils.isEmpty(recordTimeEdit.getText()) && Integer.parseInt(recordTimeEdit.getText().toString()) >= 2) {
+							recordLength = Integer.parseInt(recordTimeEdit.getText().toString()) * 60;
+						} else {
+							recordTimeEdit.setText("2");
+						}
+						controlRecord(RECORD_FLAG_START, recordLength);
+						// 录像结束后重置按钮状态（在设定的录像时间基础上再加20s误差时间）
+						mHandler.sendEmptyMessageDelayed(MESSAGE_UPDATE_BUTTON_TEXT_DELAY, recordLength * 1000 + 20 * 1000);
+						startRecordBtn.setText(R.string.StopRecord);
+					}
+					// 此处限制频繁操作(1、服务器接受命令，启停录像需要时间 2、服务器为限制文件过小，至少录制5s+时长的录像)
+					startRecordBtn.setClickable(false);
+					startBtnTimer(startRecordBtn.getText().toString());
 				} else {
 					showToast(R.string.login_tips);
 				}
@@ -324,7 +365,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		public void onPreviewFrame(byte[] bytes, Camera camera) {
 			//Log.d(TAG,"previewCallback------data="+bytes);
 			if (sendVideoData) {
-				//Log.d(TAG,"previewCallback------data="+bytes+",length:"+bytes.length);
+//				Log.d(TAG,"previewCallback------data="+bytes+",length:"+bytes.length);
 				BVCU.getData().inputVideoData(bytes, bytes.length,
 						System.currentTimeMillis() * 1000, width, height);
 			}
@@ -445,7 +486,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	   */
 		@Override
 		public int OnSessionCommand(int hCmd, BVCU_Command bvcu_command) {
-			Log.d(TAG, "OnSessionCommand");
+			Log.d(TAG, "OnSessionCommand " + bvcu_command.iSubMethod);
 			return 0;
 		}
 
@@ -457,7 +498,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 			switch (iEventCode) {
 				case BVCU_EVENT_DIALOG.BVCU_EVENT_DIALOG_OPEN:
 					Log.d(TAG, "DIALOG_OPEN命令 " + iEventCode);
-					if(pParam.iResult == BVCU_Result.BVCU_RESULT_S_PENDING){
+					if (pParam.iResult == BVCU_Result.BVCU_RESULT_S_PENDING) {
 //						Test.test(0,hDialog);
 					}
 					break;
@@ -510,7 +551,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 						recorderUtils.startRecorder();
 					}
 					mHandler.sendEmptyMessage(MESSAGE_TRANSFER_AUDIO);
-				}else if(avDir == (BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND | BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV)){
+				} else if (avDir == (BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND | BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV)) {
 					sendVideoData = false;
 					if (!recorderUtils.isRecording()) {
 						recorderUtils.startRecorder();
@@ -560,6 +601,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				case BVCU_Method.BVCU_METHOD_QUERY:
 					break;
 				case BVCU_Method.BVCU_METHOD_CONTROL:
+					if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_NRU_MANUALRECORD) {
+						if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+							Toast.makeText(MainActivity.this, getString(R.string.OperationSucceeded), Toast.LENGTH_SHORT).show();
+						} else {
+							Toast.makeText(MainActivity.this, getString(R.string.OperationFailed), Toast.LENGTH_SHORT).show();
+						}
+					}
+					Log.d(TAG, "OnCmdEvent hCmd : " + hCmd + " iResult : " + iResult + " iSubMethod : " + pCommand.iSubMethod);
 					break;
 				default:
 					break;
@@ -683,7 +732,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private BVPU_VideoControl_Encode getEncode(int codec) {
 		BVPU_VideoControl_Encode encode = new BVPU_VideoControl_Encode();
 		encode.iBitrate = width * height * 2;
-		Log.d(TAG, "getEncode iBitrate:" +encode.iBitrate);
+		Log.d(TAG, "getEncode iBitrate:" + encode.iBitrate);
 		encode.iFramerate = 25;
 		encode.iHeight = height;
 		encode.iWidth = width;
@@ -889,8 +938,52 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		}
 	}
 
+	private static final int RECORD_FLAG_START = 1; // 开始录像
+	private static final int RECORD_FLAG_STOP = 0; // 停止录像
+
+	/**
+	 * 启动/停止 终端NRU录像
+	 * 服务器至少录制5s+时长的录像，开始录像后不要立即手动停止录像，就算立即调用停止方法，服务器也会继续录制几秒后再结束
+	 * 服务器根据设定的时间自动停止录像的时间误差以分钟计，推荐至少录制2分钟，录像时长设置为>=2的整分钟
+	 * @param flag 启动、停止 标志位
+	 * @return
+	 */
+	private int controlRecord(int flag, int length) {
+		BVCU_Command command = new BVCU_Command();
+		command.iMethod = BVCU_Method.BVCU_METHOD_CONTROL;
+		command.iSubMethod = BVCU_SubMethod.BVCU_SUBMETHOD_NRU_MANUALRECORD;
+		BVCU_NRUCFG_ManualRecord nrucfgManualRecord = new BVCU_NRUCFG_ManualRecord();
+		nrucfgManualRecord.szID = "PU_" + getClientID().substring(3); // 传入PU_ID
+		nrucfgManualRecord.bStart = flag; // 开始/结束标志位
+		nrucfgManualRecord.iLength = length; // 录像时间：秒
+		nrucfgManualRecord.iMediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_VIDEORECV;
+		nrucfgManualRecord.iMediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV; // 服务器的媒体方向 ：视频接收 + 音频接收
+		nrucfgManualRecord.iChannelIndex = 0;
+		command.stMsgContent = new BVCU_CmdMsgContent();
+		command.stMsgContent.iDataCount = 1;
+		command.stMsgContent.pData = nrucfgManualRecord;
+		command.szTargetID = "NRU_";
+		int token = BVCU.getSDK().sendCmd(command);
+		return token;
+	}
+
 	private void showToast(int resId) {
 		Toast.makeText(MainActivity.this, resId, Toast.LENGTH_SHORT).show();
+	}
+
+	private void startBtnTimer(final String btnText) {
+		CountDownTimer countDownTimer = new CountDownTimer(6 * 1000, 1000) {
+			@Override
+			public void onTick(long millisUntilFinished) {
+				startRecordBtn.setText(btnText + "(" + (millisUntilFinished / 1000 + 1) + ")");
+			}
+
+			@Override
+			public void onFinish() {
+				startRecordBtn.setText(btnText);
+				startRecordBtn.setClickable(true);
+			}
+		}.start();
 	}
 
 }

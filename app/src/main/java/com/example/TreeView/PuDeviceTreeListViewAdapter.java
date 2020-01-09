@@ -29,6 +29,7 @@ public abstract class PuDeviceTreeListViewAdapter<T> extends BaseAdapter {
 
 	public interface OnTreeNodeClickListener {
 		void onClick(PuDeviceNode node, int position);
+		void onLongClick(PuDeviceNode node, View view, int position);
 	}
 
 	public void setOnTreeNodeClickListener(
@@ -71,6 +72,16 @@ public abstract class PuDeviceTreeListViewAdapter<T> extends BaseAdapter {
 				}
 			}
 
+		});
+		mTree.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+			@Override
+			public boolean onItemLongClick(AdapterView<?> adapterView, View view, int position, long id) {
+				if (onTreeNodeClickListener != null) {
+					onTreeNodeClickListener.onLongClick(mNodes.get(position), view, position);
+					return true;
+				}
+				return false;
+			}
 		});
 
 	}

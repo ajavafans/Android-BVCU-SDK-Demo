@@ -7,4 +7,8 @@
     <color name="white">#ffffff</color>
     <color name="transparent">#0000</color>
     <color name="red">#FF0000</color>
+    <color name="GreyOne">#DDDDDD</color>
+    <color name="GreyTwo">#EEEEEE</color>
+    <color name="GreyThree">#88DDDDDD</color>
+    <color name="DrakGrey">#BBBBBB</color>
 </resources>

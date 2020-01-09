@@ -39,5 +39,12 @@
     <string name="username">用户名：</string>
     <string name="password">密码：</string>
     <string name="cancel">取消</string>
+    <string name="chat">聊天</string>
     <string name="audio_talk">音频对讲</string>
+    <string name="StartRecord">开启终端录像</string>
+    <string name="StopRecord">停止终端录像</string>
+    <string name="RecordTime">录像时长(分钟)</string>
+    <string name="RecordTimeHint">请输入大于>=2的数字</string>
+    <string name="OperationSucceeded">操作成功</string>
+    <string name="OperationFailed">操作失败</string>
 </resources>

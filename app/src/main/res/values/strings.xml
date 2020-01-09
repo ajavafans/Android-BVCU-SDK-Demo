@@ -39,6 +39,12 @@
     <string name="username">Username:</string>
     <string name="password">Password:</string>
     <string name="cancel">Cancel</string>
-    <string name="chat">聊天</string>
+    <string name="chat">Chat</string>
     <string name="audio_talk">audio talk</string>
+    <string name="StartRecord">Start  terminal recording</string>
+    <string name="StopRecord">Stop terminal recording</string>
+    <string name="RecordTime">Record time(minutes)</string>
+    <string name="RecordTimeHint">Please enter a number > = 2</string>
+    <string name="OperationSucceeded">Operation succeeded</string>
+    <string name="OperationFailed">Operation Failed</string>
 </resources>
