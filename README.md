@@ -9,7 +9,13 @@ SDK主要功能接口如下：
 - 远程文件检索、下载、上传（包括平台和设备） 
 - 远程设备查询、配置 
 - 群组创建、删除、配置、 
-- 群组的文字、文件、GPS和表情等IM消息收发
+- 群组的文字、文件、GPS和表情等IM消息收发   
+
+### SDK API开发手册
+http://up.besovideo.com:7780/android_sdk_bvcu_api/index.html   
+   
+
+
 
 ## 技术支持和商务合作
 http://bbs.besovideo.com:8067/forum.php
