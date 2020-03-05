@@ -31,6 +31,9 @@ http://up.besovideo.com:7780/android_sdk_bvcu_api/index.html
    
 
 
+## 技术支持
+https://github.com/besovideo/Android-BVCU-SDK-Demo/issues
 
-## 技术支持和商务合作
+
+## 商务合作
 http://bbs.besovideo.com:8067/forum.php
