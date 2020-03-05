@@ -17,12 +17,23 @@
         android:orientation="vertical">
 
         <TextView
+            android:id="@+id/device_list_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
             android:text="@string/deviceList"
             android:textColor="@color/black"
-            android:textSize="15sp" />
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/gps_info_text_id"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text=""
+            android:textColor="@color/black"
+            android:textSize="15sp"
+            android:visibility="gone" />
 
         <ListView
             android:id="@+id/device_list_view_id"

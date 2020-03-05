@@ -3,13 +3,9 @@ package com.example.myapplication1;
 import android.Manifest;
 import android.app.Activity;
 import android.app.Dialog;
-import android.app.ProgressDialog;
-import android.content.ContentUris;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.database.Cursor;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.Size;
@@ -20,8 +16,6 @@ import android.os.CountDownTimer;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
-import android.provider.DocumentsContract;
-import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -30,7 +24,6 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -120,6 +113,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private Dialog loginDialog;
 	private String ipStr, portStr, usernameStr, passwordStr;
 	SharedTools sharedTools;
+	public static MainActivity instance;
 	private Handler mHandler = new Handler() {
 		@Override
 		public void handleMessage(@NonNull Message msg) {
@@ -184,11 +178,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		super.onCreate(savedInstanceState);
 		ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_PHONE_STATE,
 				Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 5);
+		instance = this;
 		sharedTools = new SharedTools(this);
-
-		BVCU.getSDK().init(getApplicationContext());
 		getSupportActionBar().hide();
+		BVCU.getSDK().init(getApplicationContext());
 		doAuth();
+		BVCU.getSDK().setEventCallback(bvcuEventCallback); // 设置各种消息回调，不要多次设置
 		setContentView(R.layout.activity_main);
 		mSurfaceView = findViewById(R.id.surfaceView);
 		mLoginButton = (Button) findViewById(R.id.login_button);
@@ -222,7 +217,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		bvAuth_request.setSzInnerInfo("");
 		bvAuth_request.setUserLabel(Constant.USER_LABEL);
 		bvAuth_request.setSzHardwareSN(Build.FINGERPRINT);// TODO
-		BVCU.getSDK().setEventCallback(bvcuEventCallback);
 		BVCU.getAuth().setAuthEventCallback(bvAuthEventCallback);
 		int status = BVCU.getAuth().auth(getApplicationContext(), bvAuth_request);
 		Log.d(TAG, "status=" + status);
@@ -457,14 +451,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		@Override
 		public void OnSessionEvent(int hSession, int iEventCode, int iResult, BVCU_SessionInfo bvcu_sessionInfo) {
 			Log.d(TAG, "hSession=" + hSession + ",iEventCode=" + iEventCode + ",iResult=" + iResult);
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnSessionEvent(hSession, iEventCode, iResult, bvcu_sessionInfo);
+			}
 			//iEventCode=2,iResult=0 注销
 			if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_OPEN && iResult == BVCU_Result.BVCU_RESULT_S_OK) {
 				mHandler.sendEmptyMessage(MESSAGE_LOGIN_SUCCESS);
 				isLogin = true;
+				Toast.makeText(MainActivity.this, "登录成功", Toast.LENGTH_SHORT).show();
 			} else {
 				mHandler.sendEmptyMessage(MESSAGE_LOGIN_FAILED);
 				isLogin = false;
+				Toast.makeText(MainActivity.this, "登录失败 ：" + iResult, Toast.LENGTH_SHORT).show();
 			}
 			if (bvcu_sessionInfo != null) {
 				Log.d(TAG, "szDomain=" + bvcu_sessionInfo.szDomain +
@@ -487,11 +485,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		@Override
 		public int OnSessionCommand(int hCmd, BVCU_Command bvcu_command) {
 			Log.d(TAG, "OnSessionCommand " + bvcu_command.iSubMethod);
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnSessionCommand(hCmd, bvcu_command);
+			}
 			return 0;
 		}
 
 		@Override
 		public void OnPasvDialogEvent(int hDialog, int iEventCode, BVCU_Event_DialogCmd pParam) {
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnPasvDialogEvent(hDialog, iEventCode, pParam);
+			}
 			int channelIndex = pParam.pDialogParam.pTarget[0].iIndexMajor;
 			int dir = pParam.pDialogParam.iAVStreamDir;
 			Log.d(TAG, "OnDialogEvent------hDialog=" + hDialog + ",iEventCode=" + iEventCode + ",channelIndex=" + channelIndex + ",dir=" + dir);
@@ -527,6 +531,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 		@Override
 		public int OnPasvDialogCmd(int hDialog, int iEventCode, BVCU_DialogParam pParam) {
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnPasvDialogCmd(hDialog, iEventCode, pParam);
+			}
 			int channelIndex = pParam.pTarget[0].iIndexMajor;
 			int avDir = pParam.iAVStreamDir;
 
@@ -565,8 +572,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 					locationTools.startLocation();
 				}
 			}
-
-
 			return 0;
 		}
 
@@ -579,12 +584,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		 */
 		@Override
 		public void OnDialogEvent(int hDialog, int iEventCode, BVCU_Event_DialogCmd pParam) {
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnDialogEvent(hDialog, iEventCode, pParam);
+			}
 		}
 
 		@Override
 		public void OnGetDialogInfo(int i, BVCU_DialogInfo bvcu_dialogInfo) {
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnGetDialogInfo(i, bvcu_dialogInfo);
+			}
 		}
 
 		/**
@@ -597,6 +606,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		@Override
 		public int OnCmdEvent(int hCmd, BVCU_Command pCommand, int iResult) {
 			Log.d(TAG, "OnCmdEvent");
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnCmdEvent(hCmd, pCommand, iResult);
+			}
 			switch (pCommand.iMethod) {
 				case BVCU_Method.BVCU_METHOD_QUERY:
 					break;
@@ -626,6 +638,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		@Override
 		public int DialogAfterRecv(int hDialog, BVCU_Packet pPacket) {
 			Log.d(TAG, "DialogAfterRecv");
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.DialogAfterRecv(hDialog, pPacket);
+			}
 			return 0;
 		}
         /*
@@ -644,7 +659,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		@Override
 		public void OnFileTransferInfo(BVCU_File_TransferInfos[] bvcu_file_transferInfos) {
 			Log.d(TAG, "OnFileTransferInfo------bvcu_file_transferInfos.length=" + bvcu_file_transferInfos.length);
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnFileTransferInfo(bvcu_file_transferInfos);
+			}
 			if (bvcu_file_transferInfos == null || bvcu_file_transferInfos.length == 0) {
 				return;
 			}
@@ -682,12 +699,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 		@Override
 		public void OnElecMapAlarm(int i) {
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnElecMapAlarm(i);
+			}
 		}
 
 		@Override
 		public void OnElecMapConfigUpdate(String s, String s1) {
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnElecMapConfigUpdate(s, s1);
+			}
 		}
 
 		/**
@@ -696,14 +717,22 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		 */
 		@Override
 		public void OnNotifyMessage(JNIMessage message) {
-
+			if (myBvcuEventCallback != null) {
+				myBvcuEventCallback.OnNotifyMessage(message);
+			}
 		}
 	};
+
+	// 用于传递回调信息
+	private BVCU_EventCallback myBvcuEventCallback;
+
+	public void setBVCU_EventCallback(BVCU_EventCallback myBvcuEventCallback) {
+		this.myBvcuEventCallback = myBvcuEventCallback;
+	}
 
 	@Override
 	protected void onRestart() {
 		super.onRestart();
-		BVCU.getSDK().setEventCallback(bvcuEventCallback);
 	}
 
 	private void releaseCamera() {

@@ -28,4 +28,39 @@
         android:layout_weight="1"
         android:text="文件检索" />
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:background="@color/white"/>
+
+    <CheckBox
+        android:id="@+id/talk_check_id"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="3dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:background="@color/DrakGrey"
+        android:text="对讲" >
+    </CheckBox>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:background="@color/white"/>
+
+    <CheckBox
+        android:id="@+id/gps_check_id"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="3dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:background="@color/DrakGrey"
+        android:text="位置" />
+
 </LinearLayout>

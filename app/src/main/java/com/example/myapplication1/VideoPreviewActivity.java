@@ -2,6 +2,7 @@ package com.example.myapplication1;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 import android.view.Gravity;
@@ -10,9 +11,12 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.PopupWindow;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -27,7 +31,9 @@ import com.example.dialog.OsdSettingDialog;
 import com.example.entity.FileDownloadEntity;
 import com.smarteye.adapter.BVCU_CmdMsgContent;
 import com.smarteye.adapter.BVCU_Command;
+import com.smarteye.adapter.BVCU_DATA_TYPE;
 import com.smarteye.adapter.BVCU_DialogControlParam;
+import com.smarteye.adapter.BVCU_DialogControlParam_Network;
 import com.smarteye.adapter.BVCU_DialogControlParam_Render;
 import com.smarteye.adapter.BVCU_DialogInfo;
 import com.smarteye.adapter.BVCU_DialogParam;
@@ -41,6 +47,7 @@ import com.smarteye.adapter.BVCU_MediaDir;
 import com.smarteye.adapter.BVCU_Method;
 import com.smarteye.adapter.BVCU_Online_Status;
 import com.smarteye.adapter.BVCU_PUCFG_EncoderChannel;
+import com.smarteye.adapter.BVCU_PUCFG_GPSData;
 import com.smarteye.adapter.BVCU_PUCFG_VideoIn;
 import com.smarteye.adapter.BVCU_PUChannelInfo;
 import com.smarteye.adapter.BVCU_Packet;
@@ -76,6 +83,8 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	private String videoPUID; // 正在被打开的设备ID
 	private PopupWindow popupLongWindow;
 	private Button osdSettingBtn, fileDownloadBtn;
+	private CheckBox talkCbx, gpsCbx;
+	private TextView deviceListTitle, gpsInfoText;
 	private int sizeWidth, sizeHeight;
 	private OsdSettingDialog osdSettingDialog;
 	private FileDownloadDialog fileDownloadDialog;
@@ -84,6 +93,9 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	public final static int TRANSFER_FAIL = -1;// 传输失败
 	public final static int DOWNLOAD = 0;// 下载
 	public final static int UPLOAD = 1;// 上传
+	private String talkDeviceId, gpsDeviceId; // 记录当前正在对讲和请求位置信息的设备ID
+	private int talkToken, gpsToken;// 记录当前正在对讲和请求位置信息的Token
+	private RecorderUtils recorderUtils;
 	private static final String TAG = "VideoPreviewActivity";
 
 	@Override
@@ -91,11 +103,14 @@ public class VideoPreviewActivity extends AppCompatActivity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.video_preview_acitivity);
 		mSurfaceView = findViewById(R.id.surface_id);
+		deviceListTitle = findViewById(R.id.device_list_title);
+		gpsInfoText = findViewById(R.id.gps_info_text_id);
 		deviceListLayout = findViewById(R.id.device_list_layout);
 		deviceListView = findViewById(R.id.device_list_view_id);
 		refreshBtn = findViewById(R.id.refresh_device_button);
 		showDeviceBtn = findViewById(R.id.show_device_button);
-		BVCU.getSDK().setEventCallback(bvcuEventCallback);
+		MainActivity.instance.setBVCU_EventCallback(bvcuEventCallback);
+		recorderUtils = new RecorderUtils();
 		mSurfaceHolder = mSurfaceView.getHolder();
 		mSurfaceHolder.setKeepScreenOn(true);
 		mSurfaceHolder.addCallback(surfaceHolderCallback);
@@ -226,8 +241,12 @@ public class VideoPreviewActivity extends AppCompatActivity {
 				R.layout.device_long_menu, null, false);
 		osdSettingBtn = popupWindow_view.findViewById(R.id.osd_setting_id);
 		fileDownloadBtn = popupWindow_view.findViewById(R.id.file_download_id);
+		talkCbx = popupWindow_view.findViewById(R.id.talk_check_id);
+		gpsCbx = popupWindow_view.findViewById(R.id.gps_check_id);
 		popupLongWindow = new PopupWindow(popupWindow_view, sizeWidth,
-				2 * sizeHeight, true);
+				4 * sizeHeight, true);
+		talkCbx.setChecked(deviceId.equals(talkDeviceId));
+		gpsCbx.setChecked(deviceId.equals(gpsDeviceId));
 		osdSettingBtn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
@@ -242,6 +261,18 @@ public class VideoPreviewActivity extends AppCompatActivity {
 				fileDownloadDialog = new FileDownloadDialog(VideoPreviewActivity.this, deviceId);
 				fileDownloadDialog.setCancelable(false);
 				fileDownloadDialog.show();
+			}
+		});
+		talkCbx.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+			@Override
+			public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+				pttCheckBoxClick(b, deviceId);
+			}
+		});
+		gpsCbx.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+			@Override
+			public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+				gpsCheckBoxClick(b, deviceId);
 			}
 		});
 		popupWindow_view.setOnTouchListener(new View.OnTouchListener() {
@@ -365,7 +396,7 @@ public class VideoPreviewActivity extends AppCompatActivity {
 		request.stSearchInfo.iType = BVCU_SEARCH_TYPE.BVCU_SEARCH_TYPE_PULIST;
 		request.stSearchInfo.iCount = 256; // 一次查询数目，可循环查询，查询到的总数目为下一次查询的起始位置
 		request.stPUListFilter = new BVCU_Search_PUListFilter();
-		request.stPUListFilter.iOnlineStatus = 1;//备在线状态 0：全部设备 1：在线设备 2：不在线设备
+		request.stPUListFilter.iOnlineStatus = 1;//设备在线状态 0：全部设备 1：在线设备 2：不在线设备
 		request.stPUListFilter.szIDOrName = ""; // 设备名称(或PU ID）  空：不作为索引条件 （名称或ID配置）
 		command.stMsgContent = new BVCU_CmdMsgContent();
 		command.stMsgContent.pData = request;
@@ -377,8 +408,6 @@ public class VideoPreviewActivity extends AppCompatActivity {
 		@Override
 		public void OnSessionEvent(int hSession, int iEventCode, int iResult, BVCU_SessionInfo bvcu_sessionInfo) {
 			Log.d(TAG, "hSession=" + hSession + ",iEventCode=" + iEventCode + ",iResult=" + iResult);
-
-			//iEventCode=2,iResult=0 注销
 			if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_OPEN && iResult == BVCU_Result.BVCU_RESULT_S_OK) {
 				Log.d(TAG, "登录成功");
 			} else {
@@ -407,10 +436,21 @@ public class VideoPreviewActivity extends AppCompatActivity {
 			Log.d(TAG, "DIALOG_OPEN命令 " + iEventCode);
 			if (iEventCode == BVCU_EVENT_DIALOG.BVCU_EVENT_DIALOG_OPEN) {
 				int iResult = pParam.iResult;
-				if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-					Toast.makeText(VideoPreviewActivity.this, getString(R.string.openVideoSuccess), Toast.LENGTH_SHORT).show();
-				} else {
-					Toast.makeText(VideoPreviewActivity.this, getString(R.string.openVideoFail), Toast.LENGTH_SHORT).show();
+				int avDir = pParam.pDialogParam.iAVStreamDir;
+				if ((avDir & BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND) == BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND) {
+					if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+						deviceListTitle.setText("打开对讲成功");
+					} else {
+						deviceListTitle.setText("打开对讲失败");
+						talkDeviceId = "0000";
+					}
+				} else if ((avDir & BVCU_MediaDir.BVCU_MEDIADIR_VIDEORECV) == BVCU_MediaDir.BVCU_MEDIADIR_VIDEORECV
+						&& (avDir & BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV) == BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV){
+					if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+						Toast.makeText(VideoPreviewActivity.this, getString(R.string.openVideoSuccess), Toast.LENGTH_SHORT).show();
+					} else {
+						Toast.makeText(VideoPreviewActivity.this, getString(R.string.openVideoFail), Toast.LENGTH_SHORT).show();
+					}
 				}
 			}
 		}
@@ -496,8 +536,28 @@ public class VideoPreviewActivity extends AppCompatActivity {
 		}
 
 		@Override
-		public int DialogAfterRecv(int i, BVCU_Packet bvcu_packet) {
-			return 0;
+		public int DialogAfterRecv(int hDialog, BVCU_Packet bvcu_packet) {
+			int iResult = BVCU_Result.BVCU_RESULT_S_OK;
+			switch (bvcu_packet.iDataType) {
+				case BVCU_DATA_TYPE.BVCU_DATA_TYPE_AUDIO:
+					break;
+				case BVCU_DATA_TYPE.BVCU_DATA_TYPE_VIDEO:
+					break;
+				case BVCU_DATA_TYPE.BVCU_DATA_TYPE_GPS: // 此处返回请求的设备的定位信息
+					// hDialog对应请求位置时调用openDialog()返回的Token,
+					// 所以在请求多个设备的定位信息时请保存token和设备的对应关系用于此处区分不同的定位信息
+					Log.d(TAG, "receive gps info hDialog : " + hDialog);
+					Message message = Message.obtain();
+					message.what = MESSAGE_SHOW_GPS_INFO;
+					message.obj = bvcu_packet.pData;
+					handler.sendMessage(message);
+					break;
+				case BVCU_DATA_TYPE.BVCU_DATA_TYPE_TSP:
+					break;
+				default:
+					break;
+			}
+			return iResult;
 		}
 
 		@Override
@@ -545,7 +605,8 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	};
 
 	private static final int MESSAGE_REFRESH_DEVICE_LIST = 1001;
-	private Handler handler = new Handler() {
+	private static final int MESSAGE_SHOW_GPS_INFO = 1002;
+	private Handler handler = new Handler(Looper.getMainLooper()) {
 		@Override
 		public void handleMessage(@NonNull Message msg) {
 			super.handleMessage(msg);
@@ -558,6 +619,11 @@ public class VideoPreviewActivity extends AppCompatActivity {
 					}
 					puDeviceTreeAdapter.notifyDataSetChanged();
 					break;
+				case MESSAGE_SHOW_GPS_INFO:
+					BVCU_PUCFG_GPSData gpsData = (BVCU_PUCFG_GPSData) msg.obj;
+					gpsInfoText.setVisibility(View.VISIBLE);
+					gpsInfoText.setText("Lat: " + gpsData.iLatitude / 10000000.0 + "\nLon: " + gpsData.iLongitude / 10000000.0);
+					break;
 			}
 		}
 	};
@@ -566,6 +632,186 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	protected void onDestroy() {
 		super.onDestroy();
 		Log.d(TAG, "··· onDestroy");
+		MainActivity.instance.setBVCU_EventCallback(null);
 		closeInvite();
+		if (talkToken != 0)
+			BVCU.getSDK().closeDialog(talkToken);
+		if (gpsToken != 0)
+			BVCU.getSDK().closeDialog(gpsToken);
 	}
+
+	private void pttCheckBoxClick(boolean isChecked, String deviceID) {
+		if (deviceID.equals(talkDeviceId)) { // 操作的是当前正在对讲的设备
+			if (!isChecked) { // 关闭对讲
+				if (talkToken != 0) {
+					BVCU.getSDK().closeDialog(talkToken);
+					talkToken = 0;
+					talkDeviceId = "0000";
+					deviceListTitle.setText("设备列表");
+					recorderUtils.stopRecorder();
+					if (popupLongWindow != null
+							&& popupLongWindow.isShowing()) {
+						popupLongWindow.dismiss();
+						popupLongWindow = null;
+					}
+				}
+			} else { // 打开对讲
+				if (talkToken != 0) {
+					BVCU.getSDK().closeDialog(talkToken);
+					talkToken = 0;
+					talkDeviceId = "0000";
+					recorderUtils.stopRecorder();
+				}
+				int mediaDir = 0;
+				mediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV;
+				mediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND;
+				inviteTalk(mediaDir, deviceID);
+				recorderUtils.startRecorder();
+			}
+		} else {
+			if (isChecked) {
+				if (talkToken != 0) {
+					BVCU.getSDK().closeDialog(talkToken);
+					talkToken = 0;
+					talkDeviceId = "0000";
+					recorderUtils.stopRecorder();
+				}
+				int mediaDir = 0;
+				mediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV;
+				mediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND;
+				inviteTalk(mediaDir, deviceID);
+				recorderUtils.startRecorder();
+			} else {
+				if (talkToken != 0) {
+					BVCU.getSDK().closeDialog(talkToken);
+					talkToken = 0;
+					talkDeviceId = "0000";
+					recorderUtils.stopRecorder();
+					deviceListTitle.setText("设备列表");
+					if (popupLongWindow != null
+							&& popupLongWindow.isShowing()) {
+						popupLongWindow.dismiss();
+						popupLongWindow = null;
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * 打开设备对讲
+	 * 具体参数含义请参考：http://up.besovideo.com:7780/android_sdk_bvcu_api/index.html
+	 * @param iAVStreamDir 媒体方向 音频结束 + 音频发送
+	 * @param deviceID     目标设备ID
+	 */
+	private void inviteTalk(int iAVStreamDir, String deviceID) {
+		BVCU_DialogInfo dialogInfo = new BVCU_DialogInfo();
+		dialogInfo.stParam = new BVCU_DialogParam();
+		dialogInfo.stParam.iTargetCount = 1;
+		dialogInfo.stParam.pTarget = new BVCU_DialogTarget[1];
+		dialogInfo.stParam.pTarget[0] = new BVCU_DialogTarget();
+		dialogInfo.stParam.pTarget[0].iIndexMajor = 0;
+		dialogInfo.stParam.pTarget[0].iIndexMinor = -1;
+		dialogInfo.stParam.pTarget[0].szID = deviceID;
+		dialogInfo.stParam.iAVStreamDir = iAVStreamDir;
+		dialogInfo.stControlParam = new BVCU_DialogControlParam();
+		dialogInfo.stControlParam.stRender = new BVCU_DialogControlParam_Render();
+		if (dialogInfo.stControlParam.stNetwork == null)
+			dialogInfo.stControlParam.stNetwork = new BVCU_DialogControlParam_Network();
+		dialogInfo.stControlParam.stNetwork.iDelayMax = 5000;
+		dialogInfo.stControlParam.stNetwork.iDelayMin = 500;
+		dialogInfo.stControlParam.stNetwork.iDelayVsSmooth = 3; // 流畅性/实时性
+		// stNetwork.iTimeOut为默认30S,底层未赋值,此处不需修改,修改也无效
+		talkToken = BVCU.getSDK().openDialog(dialogInfo);
+		talkDeviceId = deviceID;
+		deviceListTitle.setText("正在打开对讲");
+		if (popupLongWindow != null && popupLongWindow.isShowing()) {
+			popupLongWindow.dismiss();
+			popupLongWindow = null;
+		}
+	}
+
+	/**
+	 * 请求设备定位信息，可以连续请求多个设备的定位信息
+	 * 此处只用于展示效果，请求定位信息时会关闭上一次的请求，防止返回太多定位信息不利于展示
+	 *
+	 * @param isChecked
+	 * @param deviceID
+	 */
+	private void gpsCheckBoxClick(boolean isChecked, String deviceID) {
+		if (deviceID.equals(gpsDeviceId)) { // 操作的是当前正在返回位置的设备
+			if (!isChecked) {
+				if (gpsToken != 0) {
+					BVCU.getSDK().closeDialog(gpsToken);
+					gpsToken = 0;
+					gpsDeviceId = "0000";
+					gpsInfoText.setText("");
+					gpsInfoText.setVisibility(View.GONE);
+					if (popupLongWindow != null
+							&& popupLongWindow.isShowing()) {
+						popupLongWindow.dismiss();
+						popupLongWindow = null;
+					}
+				}
+			} else {
+				if (gpsToken != 0) {
+					BVCU.getSDK().closeDialog(gpsToken);
+					gpsToken = 0;
+					gpsDeviceId = "0000";
+				}
+				inviteGPS(deviceID);
+			}
+		} else {
+			if (isChecked) {
+				if (gpsToken != 0) {
+					BVCU.getSDK().closeDialog(gpsToken);
+					gpsToken = 0;
+					gpsDeviceId = "0000";
+				}
+				inviteGPS(deviceID);
+			} else {
+				if (gpsToken != 0) {
+					BVCU.getSDK().closeDialog(gpsToken);
+					gpsToken = 0;
+					gpsDeviceId = "0000";
+					gpsInfoText.setText("");
+					gpsInfoText.setVisibility(View.GONE);
+					if (popupLongWindow != null
+							&& popupLongWindow.isShowing()) {
+						popupLongWindow.dismiss();
+						popupLongWindow = null;
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * 请求设备定位信息
+	 *
+	 * @param szID 目标设备ID
+	 */
+	private void inviteGPS(String szID) {
+		BVCU_DialogInfo dialogInfo = new BVCU_DialogInfo();
+		dialogInfo.stParam = new BVCU_DialogParam();
+		dialogInfo.stParam.iTargetCount = 1;
+		dialogInfo.stParam.pTarget = new BVCU_DialogTarget[1];
+		dialogInfo.stParam.pTarget[0] = new BVCU_DialogTarget();
+		dialogInfo.stParam.pTarget[0].iIndexMajor = BVCU_SubDev.BVCU_SUBDEV_INDEXMAJOR_MIN_GPS;
+		dialogInfo.stParam.pTarget[0].iIndexMinor = -1;
+		dialogInfo.stParam.pTarget[0].szID = szID;
+		dialogInfo.stParam.iAVStreamDir = BVCU_MediaDir.BVCU_MEDIADIR_DATARECV;
+		dialogInfo.stControlParam = new BVCU_DialogControlParam();
+		dialogInfo.stControlParam.stRender = new BVCU_DialogControlParam_Render();
+		dialogInfo.stControlParam.stRender.hWnd = null;
+		if (dialogInfo.stControlParam.stNetwork == null)
+			dialogInfo.stControlParam.stNetwork = new BVCU_DialogControlParam_Network();
+		dialogInfo.stControlParam.stNetwork.iDelayMax = 5000;
+		dialogInfo.stControlParam.stNetwork.iDelayMin = 500;
+		dialogInfo.stControlParam.stNetwork.iDelayVsSmooth = 3; // 流畅性/实时性
+		// stNetwork.iTimeOut为默认30S,底层未赋值,此处不需修改,修改也无效
+		gpsToken = BVCU.getSDK().openDialog(dialogInfo);
+		gpsDeviceId = szID;
+	}
+
 }
