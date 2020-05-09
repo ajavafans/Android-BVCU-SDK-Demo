@@ -43,7 +43,7 @@ public class FileDownloadDialog extends Dialog implements View.OnClickListener {
 	private ListView fileListView;
 	private FileListViewAdapter fileListViewAdapter;
 	private ArrayList<FileDownloadEntity> fileLists = new ArrayList<FileDownloadEntity>();
-	private Button cancelBtn, okBtn;
+	private Button cancelBtn;
 	public static final int BVCU_FILE_DOWNLOAD_FAILED = -1; //下载失败
 	public static final int BVCU_FILE_DOWNLOAD_NORMAL = 0;  //文件未下载
 	public static final int BVCU_FILE_DOWNLOAD_WAITING = 1; //等待下载
@@ -59,13 +59,11 @@ public class FileDownloadDialog extends Dialog implements View.OnClickListener {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.file__download_dialog_layout);
+		setContentView(R.layout.file_download_dialog_layout);
 		cancelBtn = findViewById(R.id.download_cancel_btn_id);
-		okBtn = findViewById(R.id.download_ok_btn_id);
 		fileListView = findViewById(R.id.file_list_id);
 		titleTextView = findViewById(R.id.file_download_title_id);
 		cancelBtn.setOnClickListener(this);
-		okBtn.setOnClickListener(this);
 		long filterEndTime = System.currentTimeMillis();
 		long filterStartTime = filterEndTime - 86400000;
 		BVCU_Search_FileFilter search_fileFilter = new BVCU_Search_FileFilter();
@@ -156,8 +154,6 @@ public class FileDownloadDialog extends Dialog implements View.OnClickListener {
 	@Override
 	public void onClick(View view) {
 		if (view.getId() == cancelBtn.getId()) {
-			this.dismiss();
-		} else if (view.getId() == okBtn.getId()) {
 			this.dismiss();
 		}
 	}

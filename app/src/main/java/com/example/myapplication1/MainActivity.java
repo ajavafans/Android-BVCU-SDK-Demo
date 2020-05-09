@@ -3,8 +3,10 @@ package com.example.myapplication1;
 import android.Manifest;
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
@@ -104,7 +106,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private Button mLoginButton, videoPreviewBtn, mUploadFileBtn, startRecordBtn;
 	private LinearLayout functionLayout;
 	private EditText recordTimeEdit;
-	private TextView mTvTransportChannel, transferPercent;
+	private TextView mTvTransportChannel, transferPercent, versionName;
 	private boolean authFlag = false;
 	private boolean isLogin = false;
 	private boolean isRecord = false;
@@ -194,6 +196,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		mTvTransportChannel = (TextView) findViewById(R.id.tv_transport_channel);
 		functionLayout = (LinearLayout) findViewById(R.id.function_layout_id);
 		transferPercent = (TextView) findViewById(R.id.file_transport_percent);
+		versionName = findViewById(R.id.version_id);
+		versionName.setText("版本：" + getVersionName());
 		mTvTransportChannel.setText(R.string.current_transfer_text);
 		mLoginButton.setOnClickListener(this);
 		videoPreviewBtn.setOnClickListener(this);
@@ -214,6 +218,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		bvAuth_request.setSzDeveloperRsaN(Constant.RSAN);
 		String serial_num = sharedTools.getShareString("auth.serialnumber", "");
 		bvAuth_request.setSzSerialNumber(serial_num);
+		bvAuth_request.setSzAppDeviceID(getClientID().substring(3));
 		bvAuth_request.setSzInnerInfo("");
 		bvAuth_request.setUserLabel(Constant.USER_LABEL);
 		bvAuth_request.setSzHardwareSN(Build.FINGERPRINT);// TODO
@@ -236,12 +241,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 			if (iAuthResult == IAuth.AUTH_Result_OK) {
 				authFlag = true;
-				Toast.makeText(MainActivity.this, R.string.authentication_success, Toast.LENGTH_SHORT).show();
+				Toast.makeText(MainActivity.this, getString(R.string.authentication_success), Toast.LENGTH_SHORT).show();
 				//login();
 				sharedTools.setShareString("auth.serialnumber", bvAuth_response.getSerialNumber());
 			} else {
 				authFlag = false;
-				Toast.makeText(MainActivity.this, R.string.authentication_failed + "，设备认证Token为" + bvAuth_response.getToken() + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
+				Toast.makeText(MainActivity.this, getString(R.string.authentication_failed) + "，设备认证Token为" + bvAuth_response.getToken() + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
 			}
 		}
 
@@ -260,7 +265,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				} else {
 					showLoginDialog();
 					showToast(R.string.authentication_failed_tips);
-					Toast.makeText(MainActivity.this, R.string.authentication_failed + "，设备认证Token为" + bv_auth_token + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
+					Toast.makeText(MainActivity.this, getString(R.string.authentication_failed) + "，设备认证Token为" + bv_auth_token + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
 				}
 				break;
 			case R.id.video_preview_button:
@@ -997,7 +1002,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	}
 
 	private void showToast(int resId) {
-		Toast.makeText(MainActivity.this, resId, Toast.LENGTH_SHORT).show();
+		Toast.makeText(MainActivity.this, getString(resId), Toast.LENGTH_SHORT).show();
 	}
 
 	private void startBtnTimer(final String btnText) {
@@ -1015,4 +1020,33 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		}.start();
 	}
 
+	/**
+	 * 获取版本号
+	 *
+	 * @return 返回版本号
+	 */
+	public int getVersionCode() {
+		int verCode = -1;
+		try {
+			verCode = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+		} catch (PackageManager.NameNotFoundException e) {
+			e.printStackTrace();
+		}
+		return verCode;
+	}
+
+	/**
+	 * 获取版本名称
+	 *
+	 * @return 返回版本名称
+	 */
+	public String getVersionName() {
+		String verName = "";
+		try {
+			verName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+		} catch (PackageManager.NameNotFoundException e) {
+			e.printStackTrace();
+		}
+		return verName;
+	}
 }

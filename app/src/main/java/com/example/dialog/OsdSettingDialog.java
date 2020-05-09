@@ -80,7 +80,9 @@ public class OsdSettingDialog extends Dialog implements View.OnClickListener {
 			if (bvcu_PUCFG_VideoIn != null) {
 				String oldTitle = bvcu_PUCFG_VideoIn.szOSDTitle;
 				int startIndex = oldTitle.indexOf("\n");
-				bvcu_PUCFG_VideoIn.szOSDTitle = editText.getText().toString() + "\n" + oldTitle.substring(startIndex);
+				if (startIndex >= 0) {
+					bvcu_PUCFG_VideoIn.szOSDTitle = editText.getText().toString() + "\n" + oldTitle.substring(startIndex);
+				}
 				controlOsdInfoConfig();
 			}
 			controlOsdEnableConfig();

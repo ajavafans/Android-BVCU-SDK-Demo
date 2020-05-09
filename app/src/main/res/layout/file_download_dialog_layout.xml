@@ -44,12 +44,6 @@
             android:layout_height="50dp"
             android:text="@string/cancel" />
 
-        <Button
-            android:id="@+id/download_ok_btn_id"
-            android:layout_width="100dp"
-            android:layout_height="50dp"
-            android:layout_marginStart="10dp"
-            android:text="应用" />
     </LinearLayout>
 
 </RelativeLayout>
