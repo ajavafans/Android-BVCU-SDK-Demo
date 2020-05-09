@@ -236,12 +236,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 			if (iAuthResult == IAuth.AUTH_Result_OK) {
 				authFlag = true;
-				Toast.makeText(MainActivity.this, R.string.authentication_success, Toast.LENGTH_SHORT).show();
+				Toast.makeText(MainActivity.this, getString(R.string.authentication_success), Toast.LENGTH_SHORT).show();
 				//login();
 				sharedTools.setShareString("auth.serialnumber", bvAuth_response.getSerialNumber());
 			} else {
 				authFlag = false;
-				Toast.makeText(MainActivity.this, R.string.authentication_failed + "，设备认证Token为" + bvAuth_response.getToken() + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
+				Toast.makeText(MainActivity.this, getString(R.string.authentication_failed) + "，设备认证Token为" + bvAuth_response.getToken() + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
 			}
 		}
 
