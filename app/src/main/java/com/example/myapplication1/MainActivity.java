@@ -11,6 +11,10 @@ import android.content.res.Configuration;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.Size;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -66,6 +70,7 @@ import com.smarteye.sdk.IAuth;
 import com.smarteye.sdk.bean.BVAuth_Request;
 import com.smarteye.sdk.bean.BVAuth_Response;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
@@ -209,6 +214,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		mSurfaceHolder.addCallback(surfaceHolderCallback);
 		recorderUtils = new RecorderUtils();
 		locationTools = new LocationTools(getApplicationContext());
+//		registerLight();//需要光线传感器的自行注册(打开注释)
 	}
 
 	private void doAuth() {
@@ -868,6 +874,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		locationTools.stopLocation();
 		BVCU.getSDK().logout();
 		BVCU.getSDK().deinit();
+		unregisterLight();
 		super.onDestroy();
 		System.exit(0);
 	}
@@ -1049,5 +1056,105 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 			e.printStackTrace();
 		}
 		return verName;
+	}
+
+	private Sensor lightSensor;//光线传感器
+	private static SensorManager mSensorManager;//传感器管理
+	private MySensorEventListener sensorEventListener;
+
+	/**
+	 * 注册光线传感器
+	 * */
+	private void registerLight() {
+		try {
+			sensorEventListener = new MySensorEventListener();
+			mSensorManager = (SensorManager) getApplicationContext().getSystemService(Context.SENSOR_SERVICE);
+			lightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);//光感
+			mSensorManager.registerListener(sensorEventListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);//四种传感器模式自行了解
+		} catch (Exception e) {
+
+		}
+	}
+
+	/**
+	 * 注销光线传感器
+	 * */
+	private void unregisterLight() {
+		try {
+			mSensorManager.unregisterListener(sensorEventListener);
+		} catch (Exception e) {
+			e.getMessage();
+		}
+	}
+
+	/**
+	 * 传感器监听
+	 * */
+	private class MySensorEventListener implements SensorEventListener {
+
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			switch (event.sensor.getType()) {
+				case Sensor.TYPE_LIGHT://光感
+					float value = event.values[0];//自行判断光感值的上下限值
+					try {
+						if (value < 10) {//光感下限值(测试值)
+							openIR(true);
+							chooseColorEffect(false);
+						}
+						if (value > 80) {//光感上限值(测试值)
+							openIR(false);
+							chooseColorEffect(true);
+						}
+					} catch (Exception e) {
+						return;
+					}
+					break;
+				default:
+					break;
+			}
+		}
+
+		@Override
+		public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+		}
+	}
+
+	/**
+	 * 红外开关方法
+	 * */
+	public static void openIR(boolean flag) {
+		//不同机型红外开关方法不同
+	}
+
+	/**
+	 * 相机黑白模式
+	 */
+	public void chooseColorEffect(boolean none) {
+		Camera.Parameters parameters = null;
+		if (mCamera != null) {
+			try {
+				parameters = mCamera.getParameters();
+			} catch (Exception e) {
+				Log.d(TAG, "Exception :" + e);
+				return;
+			}
+		} else {
+			return;
+		}
+		if (mCamera != null && parameters != null) {
+			try {
+				if (none){
+					parameters.setColorEffect("none");
+					mCamera.setParameters(parameters);
+				}else {
+					parameters.setColorEffect("mono");
+					mCamera.setParameters(parameters);
+				}
+			} catch (Exception e) {
+				return;
+			}
+		}
 	}
 }
