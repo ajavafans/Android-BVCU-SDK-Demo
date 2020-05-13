@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.myapplication1"
-    android:versionCode="101"
-    android:versionName="20200509_101">
+    android:versionCode="102"
+    android:versionName="20200513_102">
      <!--相机权限-->
     <uses-permission android:name="android.permission.CAMERA"/>
     <!--读取外部存储权限-->
@@ -25,6 +25,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"></uses-permission>
     <!-- 访问网络，网络定位需要上网-->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:allowBackup="true"

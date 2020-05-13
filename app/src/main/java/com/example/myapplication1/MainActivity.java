@@ -179,7 +179,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_PHONE_STATE,
-				Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 5);
+				Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+				Manifest.permission.ACCESS_FINE_LOCATION}, 5);
 		instance = this;
 		sharedTools = new SharedTools(this);
 		getSupportActionBar().hide();

@@ -31,6 +31,7 @@ public class LocationTools {
         option.setCoorType("bd09ll");
         option.setIsNeedAddress(true);
         option.setNeedDeviceDirect(true);
+        option.setScanSpan(2000);
         locationClient.setLocOption(option);
     }
 
@@ -48,6 +49,10 @@ public class LocationTools {
 
         @Override
         public void onReceiveLocation(BDLocation bdLocation) {
+            if (bdLocation.getLatitude() == 4.9E-324 || bdLocation.getLongitude() == 4.9E-324) {
+                return;
+            }
+            GlobalTool.BAIDU_to_WGS84(bdLocation);
             double latitude = bdLocation.getLatitude();
             double longitude = bdLocation.getLongitude();
             double altitude = bdLocation.getAltitude();
@@ -81,13 +86,12 @@ public class LocationTools {
             bvcuWallTime.iMinute = calendar.get(Calendar.MINUTE);
             bvcuWallTime.iSecond = calendar.get(Calendar.SECOND);
             bvcuPucfgGpsData.stTime = bvcuWallTime;
-            bvcuPucfgGpsData.iLatitude = ((int)latitude*10000000);
-            bvcuPucfgGpsData.iLongitude = ((int)longitude*10000000);
-            bvcuPucfgGpsData.iHeight = ((int)altitude*100);
-            bvcuPucfgGpsData.iAngle = ((int)direction);
-            bvcuPucfgGpsData.iSpeed = ((int)speed*1000);
+            bvcuPucfgGpsData.iLatitude = ((int) (latitude * 10000000));
+            bvcuPucfgGpsData.iLongitude = ((int) (longitude * 10000000));
+            bvcuPucfgGpsData.iHeight = ((int) (altitude * 100));
+            bvcuPucfgGpsData.iSpeed = ((int) (speed * 1000));
             bvcuPucfgGpsData.iStarCount = satelliteNumber;
-            bvcuPucfgGpsData.iAngle = ((int)direction * 1000);
+            bvcuPucfgGpsData.iAngle = ((int) direction * 1000);
             bvcuPucfgGpsData.bAntennaState = 1;
             bvcuPucfgGpsData.bOrientationState = 1;
 
