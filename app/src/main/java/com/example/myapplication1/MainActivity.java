@@ -349,7 +349,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		serverParam.szPassword = password;
 		serverParam.szUserAgent = Constant.USER_AGENT;
 		BVPU_ServerParam bvpuServerParam = new BVPU_ServerParam();
-		param.iClientType = BVCU_CLIENT_TYPE.BVCU_CLIENT_TYPE_UA;
+		if (serverParam.szClientID.contains("UA")) {
+			param.iClientType = BVCU_CLIENT_TYPE.BVCU_CLIENT_TYPE_UA;
+		} else if (serverParam.szClientID.contains("CU")) {
+			param.iClientType = BVCU_CLIENT_TYPE.BVCU_CLIENT_TYPE_CU;
+		} else if (serverParam.szClientID.contains("PU")) {
+			param.iClientType = BVCU_CLIENT_TYPE.BVCU_CLIENT_TYPE_PU;
+		}
 		param.iCmdProtoType = serverParam.iCmdProtoType;
 		param.iMaxChannelOpenCount = 0;
 		param.iServerPort = serverParam.iServerPort;
@@ -472,14 +478,22 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				myBvcuEventCallback.OnSessionEvent(hSession, iEventCode, iResult, bvcu_sessionInfo);
 			}
 			//iEventCode=2,iResult=0 注销
-			if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_OPEN && iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-				mHandler.sendEmptyMessage(MESSAGE_LOGIN_SUCCESS);
-				isLogin = true;
-				Toast.makeText(MainActivity.this, "登录成功", Toast.LENGTH_SHORT).show();
-			} else {
-				mHandler.sendEmptyMessage(MESSAGE_LOGIN_FAILED);
-				isLogin = false;
-				Toast.makeText(MainActivity.this, "登录失败 ：" + iResult, Toast.LENGTH_SHORT).show();
+			if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_OPEN) {
+				if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+					mHandler.sendEmptyMessage(MESSAGE_LOGIN_SUCCESS);
+					isLogin = true;
+					Toast.makeText(MainActivity.this, "登录成功", Toast.LENGTH_SHORT).show();
+				} else {
+					mHandler.sendEmptyMessage(MESSAGE_LOGIN_FAILED);
+					isLogin = false;
+					Toast.makeText(MainActivity.this, "登录失败 ：" + iResult, Toast.LENGTH_SHORT).show();
+				}
+			} else if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_CLOSE){
+				if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
+					Toast.makeText(MainActivity.this, "注销成功", Toast.LENGTH_SHORT).show();
+				} else {
+					Toast.makeText(MainActivity.this, "注销失败", Toast.LENGTH_SHORT).show();
+				}
 			}
 			if (bvcu_sessionInfo != null) {
 				Log.d(TAG, "szDomain=" + bvcu_sessionInfo.szDomain +
@@ -798,7 +812,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		for (Size size : previewSizes) {
 			//Log.d(TAG,size.width+"x"+size.height);
 		}
-		Camera.Size size = calculatePerfectSize(previewSizes,
+		Size size = calculatePerfectSize(previewSizes,
 				expectWidth, expectHeight);
 		width = size.width;
 		height = size.height;
@@ -809,15 +823,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 	public void setPictureSize(Camera.Parameters parameters, int expectWidth, int expectHeight) {
 		List<Size> supportPcitureSizes = parameters.getSupportedPictureSizes();
-		Camera.Size size = calculatePerfectSize(supportPcitureSizes,
+		Size size = calculatePerfectSize(supportPcitureSizes,
 				expectWidth, expectHeight);
 		parameters.setPictureSize(size.width, size.height);
 	}
 
-	private static void sortList(List<Camera.Size> list) {
+	private static void sortList(List<Size> list) {
 		Collections.sort(list, new Comparator<Size>() {
 			@Override
-			public int compare(Camera.Size pre, Camera.Size after) {
+			public int compare(Size pre, Size after) {
 				if (pre.width > after.width) {
 					return 1;
 				} else if (pre.width < after.width) {
@@ -828,13 +842,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		});
 	}
 
-	public Camera.Size calculatePerfectSize(List<Camera.Size> sizes, int expectWidth,
-											int expectHeight) {
+	public Size calculatePerfectSize(List<Size> sizes, int expectWidth,
+									 int expectHeight) {
 		sortList(sizes); // 根据宽度进行排序
-		Camera.Size result = sizes.get(0);
+		Size result = sizes.get(0);
 		boolean widthOrHeight = false; // 判断存在宽或高相等的Size
 		// 辗转计算宽高最接近的值
-		for (Camera.Size size : sizes) {
+		for (Size size : sizes) {
 			// 如果宽高相等，则直接返回
 			if (size.width == expectWidth && size.height == expectHeight) {
 				result = size;
