@@ -9,10 +9,10 @@
     <string name="logout_success">注销成功</string>
     <string name="has_login">已登录</string>
     <string name="not_login">未登录</string>
-    <string name="audio_video_transfer_text">当前传输通道:音视频同传</string>
-    <string name="video_transfer_text">当前传输通道:仅视频</string>
-    <string name="audio_transfer_text">当前传输通道:仅音频</string>
-    <string name="current_transfer_text">当前传输通道:</string>
+    <string name="audio_video_transfer_text">当前传输状态:音视频同传</string>
+    <string name="video_transfer_text">当前传输状态:仅视频</string>
+    <string name="audio_transfer_text">当前传输状态:仅音频</string>
+    <string name="current_transfer_text">当前传输状态:</string>
     <string name="upload_file_text">文件上传</string>
     <string name="download_file_text">文件下载</string>
     <string name="upload_success_tip">上传成功</string>

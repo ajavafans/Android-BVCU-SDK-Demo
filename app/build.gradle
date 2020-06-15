@@ -35,4 +35,5 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.2.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation(name: "BaiduLBS_aar_android_V1.2.0", ext: "aar")
+    implementation files('libs/bvcu.jar')
 }

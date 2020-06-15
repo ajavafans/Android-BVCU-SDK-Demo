@@ -22,11 +22,11 @@ public class RecorderUtils {
     private static final String RECORDER_DIA_NAME = "Recorder";
     private static final String RECORDER_FILE_PATH = Environment.getExternalStorageDirectory() + "/" +RECORDER_DIA_NAME;
     // 音频获取源
-    private static int audioSource = MediaRecorder.AudioSource.MIC;
+    private static int audioSource = MediaRecorder.AudioSource.VOICE_COMMUNICATION;
     // 设置音频采样率，44100是目前的标准，但是某些设备仍然支持22050，16000，11025
     private static int sampleRateInHz = 8000;
     // 设置音频的录制的声道CHANNEL_IN_STEREO为双声道，CHANNEL_CONFIGURATION_MONO为单声道
-    private static int channelConfig = AudioFormat.CHANNEL_IN_MONO;
+    private static int channelConfig = AudioFormat.CHANNEL_CONFIGURATION_MONO;
     // 音频数据格式:PCM 16位每个样本。保证设备支持。PCM 8位每个样本。不一定能得到设备支持。
     private static int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
 
@@ -61,41 +61,27 @@ public class RecorderUtils {
                 bufferSize = AudioRecord.getMinBufferSize(sampleRateInHz,channelConfig,audioFormat);
                 audioRecord = new AudioRecord(audioSource, sampleRateInHz,
                         channelConfig, audioFormat, bufferSize);
-                byte [] tempBufferSize = new byte[bufferSize];
-                /*
-                FileOutputStream outputStream = null;
-                String fileName = recorderFolderPath+"/"+getCurrentTime();
-                File file = new File(fileName+".pcm");
-                File outFile = new File(fileName + ".wav");
-
                 try {
-                    outputStream = new FileOutputStream(file);
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
+                    android.os.Process
+                            .setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+                    Log.d(TAG,
+                            "priority = "
+                                    + android.os.Process
+                                    .getThreadPriority(android.os.Process
+                                            .myTid()));
+                } catch (Exception e) {
+                    Log.d(TAG,
+                            "Set record thread priority failed: " + e.getMessage());
                 }
-                */
+                byte[] tempBufferSize = new byte[640];
                 audioRecord.startRecording();
                 isRecording = true;
-                Log.d(TAG,"isRecording:"+isRecording);
-                while(isRecording){
-                    audioRecord.read(tempBufferSize,0,bufferSize);
-                    BVCU.getData().inputAudioData(tempBufferSize,bufferSize,System.currentTimeMillis() * 1000);
-                    /*
-                    try {
-                        outputStream.write(tempBufferSize);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    */
+                Log.d(TAG, "isRecording:" + isRecording);
+                while (isRecording) {
+                    int ret = audioRecord.read(tempBufferSize, 0, tempBufferSize.length);
+                    if (ret < 0) return;
+                    BVCU.getData().inputAudioData(tempBufferSize, ret, System.currentTimeMillis() * 1000);
                 }
-                /*
-                try {
-                    outputStream.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                pcmToWave(file.getAbsolutePath(), outFile.getAbsolutePath());
-                */
             }
         }).start();
 

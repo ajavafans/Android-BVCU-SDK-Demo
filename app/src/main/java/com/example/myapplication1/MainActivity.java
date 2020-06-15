@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
@@ -39,6 +40,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import com.google.gson.Gson;
 import com.smarteye.adapter.BVCU_CLIENT_TYPE;
 import com.smarteye.adapter.BVCU_CmdMsgContent;
 import com.smarteye.adapter.BVCU_Command;
@@ -59,10 +61,12 @@ import com.smarteye.adapter.BVCU_SessionInfo;
 import com.smarteye.adapter.BVCU_SessionParam;
 import com.smarteye.adapter.BVCU_SubDev;
 import com.smarteye.adapter.BVCU_SubMethod;
+import com.smarteye.adapter.BVPU_MediaDir;
 import com.smarteye.adapter.BVPU_ServerParam;
 import com.smarteye.adapter.BVPU_VideoControl_Encode;
 import com.smarteye.adapter.SAVCodec_ID;
 import com.smarteye.bean.JNIMessage;
+import com.smarteye.coresdk.CoreSDK;
 import com.smarteye.sdk.BVAuth_EventCallback;
 import com.smarteye.sdk.BVCU;
 import com.smarteye.sdk.BVCU_EventCallback;
@@ -76,6 +80,13 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static com.smarteye.adapter.BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND;
+import static com.smarteye.adapter.BVCU_MediaDir.BVCU_MEDIADIR_VIDEOSEND;
+
+/**
+ * 注意：如果对DEMO中使用到的一些java类，错误码等信息不理解
+ * 请参考：http://up.besovideo.com:7780/android_sdk_bvcu_api/index.html
+ */
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 	private static final String TAG = "MainActivity";
 	private static final int FILE_REQUEST_CODE = 1000;
@@ -83,16 +94,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private static final int UPLOAD_FILE_FLAG = 1;
 	private static final int MESSAGE_LOGIN_SUCCESS = 100;
 	private static final int MESSAGE_LOGIN_FAILED = 101;
-	private static final int MESSAGE_TRANSFER_VIDEO_AND_AUDIO = 102;
-	private static final int MESSAGE_TRANSFER_AUDIO_TALK = 111;
-	private static final int MESSAGE_TRANSFER_VIDEO = 103;
-	private static final int MESSAGE_TRANSFER_AUDIO = 104;
+	private static final int MESSAGE_TRANSFER_STATUS = 104;
 	private static final int MESSAGE_TRANSFER_NOTHING = 105;
 	private static final int MESSAGE_UPLOAD_FILE_SUCCESS = 106;
 	private static final int MESSAGE_UPLOAD_FILE_FAIL = 107;
 	private static final int MESSAGE_DOWNLOAD_FILE_SUCCESS = 108;
 	private static final int MESSAGE_DOWNLOAD_FILE_FAIL = 109;
 	private static final int MESSAGE_UPDATE_UPLOAD_FILE_PROGRESS = 110;
+	private static final int MESSAGE_SHOW_TOAST_INFO = 112;        // 显示Toast信息
 	private static final int MESSAGE_UPDATE_BUTTON_TEXT_DELAY = 120; // 录像时间结束重置按钮状态
 	private static final String RECORDER_DIR_NAME = "Recorder";
 	private static final String RECORDER_FILE_PATH = Environment.getExternalStorageDirectory() + "/" + RECORDER_DIR_NAME;
@@ -120,9 +129,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	private String ipStr, portStr, usernameStr, passwordStr;
 	SharedTools sharedTools;
 	public static MainActivity instance;
+	private int tempAvDir;
 	private static final String SERIAL_NUMBER_VALUE = "auth.serialnumber";
 	private static final String INNER_INFO_VALUE = "inner.info";
-	private Handler mHandler = new Handler() {
+	private Handler mHandler = new Handler(Looper.getMainLooper()) {
 		@Override
 		public void handleMessage(@NonNull Message msg) {
 			switch (msg.what) {
@@ -138,17 +148,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 					mLoginButton.setText(getString(R.string.login_text));
 					mTvTransportChannel.setText(R.string.current_transfer_text);
 					break;
-				case MESSAGE_TRANSFER_VIDEO_AND_AUDIO:
-					mTvTransportChannel.setText(R.string.audio_video_transfer_text);
-					break;
-				case MESSAGE_TRANSFER_AUDIO_TALK:
-					mTvTransportChannel.setText(R.string.audio_talk);
-					break;
-				case MESSAGE_TRANSFER_VIDEO:
-					mTvTransportChannel.setText(R.string.video_transfer_text);
-					break;
-				case MESSAGE_TRANSFER_AUDIO:
-					mTvTransportChannel.setText(R.string.audio_transfer_text);
+				case MESSAGE_TRANSFER_STATUS:
+					mTvTransportChannel.setText(getString(R.string.current_transfer_text) + (String)msg.obj);
 					break;
 				case MESSAGE_TRANSFER_NOTHING:
 					mTvTransportChannel.setText(R.string.current_transfer_text);
@@ -176,6 +177,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				case MESSAGE_UPDATE_BUTTON_TEXT_DELAY:
 					isRecord = false;
 					startRecordBtn.setText(R.string.StartRecord);
+					break;
+				case MESSAGE_SHOW_TOAST_INFO:
+					Toast.makeText(MainActivity.this, (String)msg.obj, Toast.LENGTH_SHORT).show();
 					break;
 			}
 		}
@@ -218,6 +222,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 //		registerLight();//需要光线传感器的自行注册(打开注释)
 	}
 
+	/**
+	 * 注意：如果对DEMO中使用到的一些java类，错误码等信息不理解
+	 * 请参考：http://up.besovideo.com:7780/android_sdk_bvcu_api/index.html
+	 */
 	private void doAuth() {
 		BVAuth_Request bvAuth_request = new BVAuth_Request();
 		bvAuth_request.setSzDeveloperAppID(Constant.APP_ID);
@@ -232,11 +240,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		bvAuth_request.setUserLabel(Constant.USER_LABEL);
 		bvAuth_request.setSzHardwareSN(Build.FINGERPRINT);// TODO
 		BVCU.getAuth().setAuthEventCallback(bvAuthEventCallback);
-		int status = BVCU.getAuth().auth(getApplicationContext(), bvAuth_request);
-		Log.d(TAG, "status=" + status);
+		int result = BVCU.getAuth().auth(getApplicationContext(), bvAuth_request);
+		Log.d(TAG, "认证方法 result ：" + result);
 	}
 
-	int bv_auth_token = 0;
 	private BVAuth_EventCallback bvAuthEventCallback = new BVAuth_EventCallback() {
 		@Override
 		public void OnEvent(int iAuthResult, BVAuth_Response bvAuth_response) {
@@ -246,16 +253,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 					",iToken=" + bvAuth_response.getToken() +
 					",szSerialNumber=" + bvAuth_response.getSerialNumber() +
 					",iAuthAvailableKeyCount=" + bvAuth_response.getAuthAvailableKeyCount());
-			bv_auth_token = bvAuth_response.getToken();
-
 			if (iAuthResult == IAuth.AUTH_Result_OK) {
 				authFlag = true;
-				Toast.makeText(MainActivity.this, getString(R.string.authentication_success), Toast.LENGTH_SHORT).show();
-				//login();
+				showToastByHandler(getString(R.string.authentication_success));
 				sharedTools.setShareString(SERIAL_NUMBER_VALUE, bvAuth_response.getSerialNumber());
 			} else {
 				authFlag = false;
-				Toast.makeText(MainActivity.this, getString(R.string.authentication_failed) + "，设备认证Token为" + bvAuth_response.getToken() + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
+				showToastByHandler(getString(R.string.authentication_failed) + " : " + iAuthResult
+						+ "，认证ID为 : " + bvAuth_response.getToken() + "" + ",认证设备需联系相关商务人员");
 			}
 		}
 
@@ -277,7 +282,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				} else {
 					showLoginDialog();
 					showToast(R.string.authentication_failed_tips);
-					Toast.makeText(MainActivity.this, getString(R.string.authentication_failed) + "，设备认证Token为" + bv_auth_token + ",认证设备需联系相关商务人员", Toast.LENGTH_LONG).show();
 				}
 				break;
 			case R.id.video_preview_button:
@@ -365,7 +369,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		param.szServerAddr = serverParam.szServerAddr;
 		param.szUserAgent = serverParam.szUserAgent;
 		param.szUserName = serverParam.szUserName;
-		bvpuServerParam.szDeviceName = "SDK测试";
+		bvpuServerParam.szDeviceName = "SDK测试" + Build.MODEL;
 		bvpuServerParam.iMediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_VIDEOSEND;
 		bvpuServerParam.iMediaDir ^= BVCU_MediaDir.BVCU_MEDIADIR_TALKONLY;
 		if (serverParam.szClientID.contains("UA")) {
@@ -373,16 +377,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 			param.stEntityInfo = new BVCU_EntityInfo();
 			PUDeviceInfo.initPUEntityInfo(param.stEntityInfo, bvpuServerParam);
 		}
-		int loginStatus = BVCU.getSDK().login(param);
-		Log.d(TAG, "loginStatus:" + loginStatus);
+		int loginResult = BVCU.getSDK().login(param);
+		Log.d(TAG, "登录方法 loginResult ：" + loginResult);
 	}
 
 	private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
 		@Override
 		public void onPreviewFrame(byte[] bytes, Camera camera) {
-			//Log.d(TAG,"previewCallback------data="+bytes);
 			if (sendVideoData) {
-//				Log.d(TAG,"previewCallback------data="+bytes+",length:"+bytes.length);
 				BVCU.getData().inputVideoData(bytes, bytes.length,
 						System.currentTimeMillis() * 1000, width, height);
 			}
@@ -394,7 +396,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		public void surfaceCreated(SurfaceHolder surfaceHolder) {
 			Log.d(TAG, "surfaceCreated------");
 			int number = Camera.getNumberOfCameras();
-			Log.d(TAG, "number:" + number);
 			if (cameraIndex > number || cameraIndex < 0)
 				return;
 			if (mCamera == null) {
@@ -412,7 +413,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				mCamera.setDisplayOrientation(0);
 			}
 			mCamera.setParameters(parameters);
-			//mCamera.setDisplayOrientation(270);
 			mCamera.setPreviewCallback(previewCallback);
 			try {
 				mCamera.setPreviewDisplay(mSurfaceHolder);
@@ -426,19 +426,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		public void surfaceChanged(SurfaceHolder surfaceHolder, int format, int width, int height) {
 			Log.d(TAG, "surfaceChanged------");
 			if (mSurfaceHolder.getSurface() == null) {
-				// preview surface does not exist
 				return;
 			}
 			try {
 				mCamera.stopPreview();
 			} catch (Exception e) {
-				// ignore: tried to stop a non-existent preview
+				e.getMessage();
 			}
 			try {
 				mCamera.setPreviewCallback(previewCallback);
 				mCamera.setPreviewDisplay(mSurfaceHolder);
 				mCamera.startPreview();
 			} catch (Exception e) {
+				e.getMessage();
 			}
 		}
 
@@ -452,9 +452,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 	String getRandomID() {
 		ThreadLocalRandom threadLocalRandom = ThreadLocalRandom.current();
 		int i3 = threadLocalRandom.nextInt(10000, 99999);
-		return "UA_" + String.valueOf(i3);
+		return String.valueOf(i3);
 	}
 
+	/**
+	 * 仅持久保存CU_ID的后面数字部分，前面CU_/UA_可根据需求修改
+	 * @return
+	 */
 	String getClientID() {
 		SharedPreferences sp = getSharedPreferences("config", MODE_PRIVATE);
 		String ID = sp.getString("client_id", null);
@@ -464,7 +468,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 			editor.putString("client_id", ID);
 			editor.commit();//类似于数据库的事务，保证数据同时提交
 		}
-		return ID;
+		return "UA_" + ID;
 	}
 
 	private BVCU_EventCallback bvcuEventCallback = new BVCU_EventCallback() {
@@ -477,22 +481,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 			if (myBvcuEventCallback != null) {
 				myBvcuEventCallback.OnSessionEvent(hSession, iEventCode, iResult, bvcu_sessionInfo);
 			}
-			//iEventCode=2,iResult=0 注销
 			if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_OPEN) {
 				if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
 					mHandler.sendEmptyMessage(MESSAGE_LOGIN_SUCCESS);
 					isLogin = true;
-					Toast.makeText(MainActivity.this, "登录成功", Toast.LENGTH_SHORT).show();
+					showToastByHandler("登录成功");
 				} else {
 					mHandler.sendEmptyMessage(MESSAGE_LOGIN_FAILED);
 					isLogin = false;
-					Toast.makeText(MainActivity.this, "登录失败 ：" + iResult, Toast.LENGTH_SHORT).show();
+					showToastByHandler("登录失败 ：" + iResult);
 				}
 			} else if (iEventCode == BVCU_EventCode.BVCU_EVENT_SESSION_CLOSE){
 				if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-					Toast.makeText(MainActivity.this, "注销成功", Toast.LENGTH_SHORT).show();
+					showToastByHandler("注销成功");
 				} else {
-					Toast.makeText(MainActivity.this, "注销失败", Toast.LENGTH_SHORT).show();
+					showToastByHandler("注销失败");
 				}
 			}
 			if (bvcu_sessionInfo != null) {
@@ -524,32 +527,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 		@Override
 		public void OnPasvDialogEvent(int hDialog, int iEventCode, BVCU_Event_DialogCmd pParam) {
+			Log.d(TAG, "被动 OnPasvDialogEvent hDialog ：" + hDialog + " iEventCode : " +iEventCode + " pParam : " + new Gson().toJson(pParam));
 			if (myBvcuEventCallback != null) {
 				myBvcuEventCallback.OnPasvDialogEvent(hDialog, iEventCode, pParam);
 			}
 			int channelIndex = pParam.pDialogParam.pTarget[0].iIndexMajor;
 			int dir = pParam.pDialogParam.iAVStreamDir;
-			Log.d(TAG, "OnDialogEvent------hDialog=" + hDialog + ",iEventCode=" + iEventCode + ",channelIndex=" + channelIndex + ",dir=" + dir);
+			Log.d(TAG, "OnPasvDialogEvent------hDialog=" + hDialog + ",iEventCode=" + iEventCode + ",channelIndex=" + channelIndex + ",dir=" + dir);
 			switch (iEventCode) {
 				case BVCU_EVENT_DIALOG.BVCU_EVENT_DIALOG_OPEN:
-					Log.d(TAG, "DIALOG_OPEN命令 " + iEventCode);
+					Log.d(TAG, "DIALOG_OPEN命令");
 					if (pParam.iResult == BVCU_Result.BVCU_RESULT_S_PENDING) {
-//						Test.test(0,hDialog);
 					}
 					break;
 				case BVCU_EVENT_DIALOG.BVCU_EVENT_DIALOG_CLOSE:
-					Log.d(TAG, "DIALOG_CLOSE命令 " + iEventCode);
-//					Test.test(1,hDialog);
+					Log.d(TAG, "DIALOG_CLOSE命令");
 					if (channelIndex == BVCU_SubDev.BVCU_SUBDEV_INDEXMAJOR_MIN_CHANNEL) {
+						tempAvDir = 0;
 						if (dir == 0) {
-							if (sendVideoData) {
-								sendVideoData = false;
-							}
-
+							sendVideoData = false;
 							if (recorderUtils.isRecording()) {
 								recorderUtils.stopRecorder();
 							}
-
 							mHandler.sendEmptyMessage(MESSAGE_TRANSFER_NOTHING);
 						}
 					}
@@ -562,42 +561,42 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 		@Override
 		public int OnPasvDialogCmd(int hDialog, int iEventCode, BVCU_DialogParam pParam) {
+			Log.d(TAG, "被动 OnPasvDialogCmd hDialog ：" + hDialog + " iEventCode : " + iEventCode + " pParam : " + new Gson().toJson(pParam));
 			if (myBvcuEventCallback != null) {
 				myBvcuEventCallback.OnPasvDialogCmd(hDialog, iEventCode, pParam);
 			}
 			int channelIndex = pParam.pTarget[0].iIndexMajor;
 			int avDir = pParam.iAVStreamDir;
-
-			Log.d(TAG, "OnDialogCmd------channelIndex=" + channelIndex + ",avDir=" + avDir);
+			Log.d(TAG, "OnPasvDialogCmd ------channelIndex=" + channelIndex + ",avDir=" + avDir);
 
 			if (channelIndex >= BVCU_SubDev.BVCU_SUBDEV_INDEXMAJOR_MIN_CHANNEL && channelIndex <= BVCU_SubDev.BVCU_SUBDEV_INDEXMAJOR_MAX_CHANNEL) {
-				if (avDir == (BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND | BVCU_MediaDir.BVCU_MEDIADIR_VIDEOSEND)) { //音视频同传
+				Message message = Message.obtain();
+				message.what = MESSAGE_TRANSFER_STATUS;
+				message.obj = getTransferState(avDir);
+				mHandler.sendMessage(message);
+				/*****************************************************/
+				if ((avDir & BVCU_MEDIADIR_VIDEOSEND) == BVCU_MEDIADIR_VIDEOSEND &&
+						(tempAvDir & BVCU_MEDIADIR_VIDEOSEND) != BVCU_MEDIADIR_VIDEOSEND) {
 					sendVideoData = true;
+				} else if ((tempAvDir & BVCU_MEDIADIR_VIDEOSEND) == BVCU_MEDIADIR_VIDEOSEND
+						&& (avDir & BVCU_MEDIADIR_VIDEOSEND) != BVCU_MEDIADIR_VIDEOSEND) {
+					sendVideoData = false;
+				}
+
+				if ((avDir & BVCU_MEDIADIR_AUDIOSEND) == BVCU_MEDIADIR_AUDIOSEND &&
+						(tempAvDir & BVCU_MEDIADIR_AUDIOSEND) != BVCU_MEDIADIR_AUDIOSEND) {
 					if (!recorderUtils.isRecording()) {
 						recorderUtils.startRecorder();
 					}
-					mHandler.sendEmptyMessage(MESSAGE_TRANSFER_VIDEO_AND_AUDIO);
-				} else if (avDir == BVCU_MediaDir.BVCU_MEDIADIR_VIDEOSEND) {//视频
-					sendVideoData = true;
+				} else if ((avDir & BVCU_MEDIADIR_AUDIOSEND) != BVCU_MEDIADIR_AUDIOSEND &&
+						(tempAvDir & BVCU_MEDIADIR_AUDIOSEND) == BVCU_MEDIADIR_AUDIOSEND) {
 					if (recorderUtils.isRecording()) {
 						recorderUtils.stopRecorder();
 					}
-					mHandler.sendEmptyMessage(MESSAGE_TRANSFER_VIDEO);
-				} else if (avDir == BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND) {//音频
-					sendVideoData = false;
-					if (!recorderUtils.isRecording()) {
-						recorderUtils.startRecorder();
-					}
-					mHandler.sendEmptyMessage(MESSAGE_TRANSFER_AUDIO);
-				} else if (avDir == (BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND | BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV)) {
-					sendVideoData = false;
-					if (!recorderUtils.isRecording()) {
-						recorderUtils.startRecorder();
-					}
-					mHandler.sendEmptyMessage(MESSAGE_TRANSFER_AUDIO_TALK);
 				}
+				/*****************************************************/
 				updateParam(pParam);
-
+				tempAvDir = avDir;
 			} else if (channelIndex >= BVCU_SubDev.BVCU_SUBDEV_INDEXMAJOR_MIN_GPS && channelIndex <= BVCU_SubDev.BVCU_SUBDEV_INDEXMAJOR_MAX_GPS) {
 				if (avDir == BVCU_MediaDir.BVCU_MEDIADIR_DATASEND) {
 					locationTools.startLocation();
@@ -615,6 +614,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		 */
 		@Override
 		public void OnDialogEvent(int hDialog, int iEventCode, BVCU_Event_DialogCmd pParam) {
+			Log.d(TAG, "主动 OnDialogEvent  hDialog : " + hDialog + " iEventCode : " + iEventCode + " pParam : " + new Gson().toJson(pParam));
 			if (myBvcuEventCallback != null) {
 				myBvcuEventCallback.OnDialogEvent(hDialog, iEventCode, pParam);
 			}
@@ -646,9 +646,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 				case BVCU_Method.BVCU_METHOD_CONTROL:
 					if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_NRU_MANUALRECORD) {
 						if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-							Toast.makeText(MainActivity.this, getString(R.string.OperationSucceeded), Toast.LENGTH_SHORT).show();
+							showToastByHandler(getString(R.string.OperationSucceeded));
 						} else {
-							Toast.makeText(MainActivity.this, getString(R.string.OperationFailed), Toast.LENGTH_SHORT).show();
+							showToastByHandler(getString(R.string.OperationFailed));
 						}
 					}
 					Log.d(TAG, "OnCmdEvent hCmd : " + hCmd + " iResult : " + iResult + " iSubMethod : " + pCommand.iSubMethod);
@@ -807,11 +807,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 		return encode;
 	}
 
+	private String getTransferState(int avDir){
+		String avDesc = "";
+		if (avDir != 0) {
+			if ((avDir & BVPU_MediaDir.BVPU_MEDIADIR_AUDIORECV) == BVPU_MediaDir.BVPU_MEDIADIR_AUDIORECV) {
+				avDesc += "音频接收 ";
+			}
+			if ((avDir & BVPU_MediaDir.BVPU_MEDIADIR_VIDEORECV) == BVPU_MediaDir.BVPU_MEDIADIR_VIDEORECV) {
+				avDesc += "视频接收 ";
+			}
+			if ((avDir & BVPU_MediaDir.BVPU_MEDIADIR_AUDIOSEND) == BVPU_MediaDir.BVPU_MEDIADIR_AUDIOSEND) {
+				avDesc += "音频发送 ";
+			}
+			if ((avDir & BVPU_MediaDir.BVPU_MEDIADIR_VIDEOSEND) == BVPU_MediaDir.BVPU_MEDIADIR_VIDEOSEND) {
+				avDesc += "视频发送";
+			}
+		}
+		return avDesc;
+	}
+
+
 	public void setPreviewSize(Camera.Parameters parameters, int expectWidth, int expectHeight) {
 		List<Size> previewSizes = parameters.getSupportedPreviewSizes();
-		for (Size size : previewSizes) {
-			//Log.d(TAG,size.width+"x"+size.height);
-		}
 		Size size = calculatePerfectSize(previewSizes,
 				expectWidth, expectHeight);
 		width = size.width;
@@ -881,6 +898,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 			}
 		}
 		return result;
+	}
+
+	private void showToastByHandler(String toastInfo) {
+		Message message = Message.obtain();
+		message.what = MESSAGE_SHOW_TOAST_INFO;
+		message.obj = toastInfo;
+		mHandler.sendMessage(message);
 	}
 
 	@Override

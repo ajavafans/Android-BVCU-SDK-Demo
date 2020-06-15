@@ -98,6 +98,8 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	private RecorderUtils recorderUtils;
 	private static final String TAG = "VideoPreviewActivity";
 
+	// 1、点击设备名可展开通道列表，点击通道即可打开该通道的视频，再次点击通道关闭视频
+ 	// 2、长按设备名可查看更多功能：对讲、请求设备位置、叠加信息设置、文件检索
 	@Override
 	protected void onCreate(@Nullable Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -428,28 +430,24 @@ public class VideoPreviewActivity extends AppCompatActivity {
 
 		@Override
 		public void OnPasvDialogEvent(int i, int i1, BVCU_Event_DialogCmd bvcu_event_dialogCmd) {
-
 		}
 
 		@Override
 		public void OnDialogEvent(int hDialog, int iEventCode, BVCU_Event_DialogCmd pParam) {
-			Log.d(TAG, "DIALOG_OPEN命令 " + iEventCode);
 			if (iEventCode == BVCU_EVENT_DIALOG.BVCU_EVENT_DIALOG_OPEN) {
 				int iResult = pParam.iResult;
 				int avDir = pParam.pDialogParam.iAVStreamDir;
 				if ((avDir & BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND) == BVCU_MediaDir.BVCU_MEDIADIR_AUDIOSEND) {
-					if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-						deviceListTitle.setText("打开对讲成功");
-					} else {
-						deviceListTitle.setText("打开对讲失败");
-						talkDeviceId = "0000";
-					}
+					Message message = Message.obtain();
+					message.what = MESSAGE_SHOW_TALK_STATUS;
+					message.arg1 = iResult;
+					handler.sendMessage(message);
 				} else if ((avDir & BVCU_MediaDir.BVCU_MEDIADIR_VIDEORECV) == BVCU_MediaDir.BVCU_MEDIADIR_VIDEORECV
-						&& (avDir & BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV) == BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV){
+						&& (avDir & BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV) == BVCU_MediaDir.BVCU_MEDIADIR_AUDIORECV) {
 					if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-						Toast.makeText(VideoPreviewActivity.this, getString(R.string.openVideoSuccess), Toast.LENGTH_SHORT).show();
+						showToast(getString(R.string.openVideoSuccess));
 					} else {
-						Toast.makeText(VideoPreviewActivity.this, getString(R.string.openVideoFail), Toast.LENGTH_SHORT).show();
+						showToast(getString(R.string.openVideoFail));
 					}
 				}
 			}
@@ -475,7 +473,7 @@ public class VideoPreviewActivity extends AppCompatActivity {
 							handler.sendMessage(message);
 						}
 						if (rsp.pFileInfo != null && fileDownloadDialog != null) { // 文件列表回复
-							Message message = new Message();
+							Message message = Message.obtain();
 							message.what = FileDownloadDialog.UPDATE_FILE_LIST;
 							message.obj = rsp.pFileInfo;
 							fileDownloadDialog.handler.sendMessage(message);
@@ -484,7 +482,7 @@ public class VideoPreviewActivity extends AppCompatActivity {
 						if (iResult != BVCU_Result.BVCU_RESULT_S_OK) {
 							Log.w(TAG, "cmd query pu encoder channel response fail: " + iResult);
 							if (osdSettingDialog != null) {
-								Toast.makeText(VideoPreviewActivity.this, "查询叠加信息失败", Toast.LENGTH_SHORT).show();
+								showToast("查询叠加信息失败");
 							}
 						} else {
 							try {
@@ -500,7 +498,7 @@ public class VideoPreviewActivity extends AppCompatActivity {
 						if (iResult != BVCU_Result.BVCU_RESULT_S_OK) {
 							Log.w(TAG, "cmd query pu video in response fail: " + iResult);
 							if (osdSettingDialog != null) {
-								Toast.makeText(VideoPreviewActivity.this, "查询视频输入配置失败", Toast.LENGTH_SHORT).show();
+								showToast("查询视频输入配置失败");
 							}
 						} else {
 							try {
@@ -517,15 +515,15 @@ public class VideoPreviewActivity extends AppCompatActivity {
 				case BVCU_Method.BVCU_METHOD_CONTROL:
 					if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_PU_ENCODERCHANNEL) {
 						if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-							Toast.makeText(VideoPreviewActivity.this, "设置叠加信息成功", Toast.LENGTH_SHORT).show();
+							showToast("设置叠加信息成功");
 						} else {
-							Toast.makeText(VideoPreviewActivity.this, "设置叠加信息失败", Toast.LENGTH_SHORT).show();
+							showToast("设置叠加信息失败");
 						}
 					} else if (pCommand.iSubMethod == BVCU_SubMethod.BVCU_SUBMETHOD_PU_VIDEOIN) {
 						if (iResult == BVCU_Result.BVCU_RESULT_S_OK) {
-							Toast.makeText(VideoPreviewActivity.this, "设置视频输入配置成功", Toast.LENGTH_SHORT).show();
+							showToast("设置视频输入配置成功");
 						} else {
-							Toast.makeText(VideoPreviewActivity.this, "设置视频输入配置失败", Toast.LENGTH_SHORT).show();
+							showToast("设置视频输入配置失败");
 						}
 					}
 					break;
@@ -546,7 +544,6 @@ public class VideoPreviewActivity extends AppCompatActivity {
 				case BVCU_DATA_TYPE.BVCU_DATA_TYPE_GPS: // 此处返回请求的设备的定位信息
 					// hDialog对应请求位置时调用openDialog()返回的Token,
 					// 所以在请求多个设备的定位信息时请保存token和设备的对应关系用于此处区分不同的定位信息
-					Log.d(TAG, "receive gps info hDialog : " + hDialog);
 					Message message = Message.obtain();
 					message.what = MESSAGE_SHOW_GPS_INFO;
 					message.obj = bvcu_packet.pData;
@@ -604,8 +601,10 @@ public class VideoPreviewActivity extends AppCompatActivity {
 		}
 	};
 
-	private static final int MESSAGE_REFRESH_DEVICE_LIST = 1001;
-	private static final int MESSAGE_SHOW_GPS_INFO = 1002;
+	private static final int MESSAGE_REFRESH_DEVICE_LIST = 1001;    // 更新设备列表
+	private static final int MESSAGE_SHOW_GPS_INFO = 1002;          // 显示设备GPS信息
+	private static final int MESSAGE_SHOW_TALK_STATUS = 1003;       // 显示对讲状态
+	private static final int MESSAGE_SHOW_TOAST_INFO = 1004;        // 显示Toast信息
 	private Handler handler = new Handler(Looper.getMainLooper()) {
 		@Override
 		public void handleMessage(@NonNull Message msg) {
@@ -624,15 +623,34 @@ public class VideoPreviewActivity extends AppCompatActivity {
 					gpsInfoText.setVisibility(View.VISIBLE);
 					gpsInfoText.setText("Lat: " + gpsData.iLatitude / 10000000.0 + "\nLon: " + gpsData.iLongitude / 10000000.0);
 					break;
+				case MESSAGE_SHOW_TALK_STATUS:
+					if (msg.arg1 == BVCU_Result.BVCU_RESULT_S_OK) {
+						deviceListTitle.setText("打开对讲成功");
+					} else {
+						deviceListTitle.setText("打开对讲失败");
+						talkDeviceId = "0000";
+					}
+					break;
+				case MESSAGE_SHOW_TOAST_INFO:
+					Toast.makeText(VideoPreviewActivity.this, (String) msg.obj, Toast.LENGTH_SHORT).show();
+					break;
 			}
 		}
 	};
+
+	private void showToast(String toastInfo) {
+		Message message = Message.obtain();
+		message.what = MESSAGE_SHOW_TOAST_INFO;
+		message.obj = toastInfo;
+		handler.sendMessage(message);
+	}
 
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
 		Log.d(TAG, "··· onDestroy");
 		MainActivity.instance.setBVCU_EventCallback(null);
+		recorderUtils.stopRecorder();
 		closeInvite();
 		if (talkToken != 0)
 			BVCU.getSDK().closeDialog(talkToken);
@@ -701,6 +719,7 @@ public class VideoPreviewActivity extends AppCompatActivity {
 	/**
 	 * 打开设备对讲
 	 * 具体参数含义请参考：http://up.besovideo.com:7780/android_sdk_bvcu_api/index.html
+	 *
 	 * @param iAVStreamDir 媒体方向 音频结束 + 音频发送
 	 * @param deviceID     目标设备ID
 	 */
